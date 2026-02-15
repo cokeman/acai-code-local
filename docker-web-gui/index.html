@@ -31,6 +31,29 @@
   --shadow: 0 4px 24px rgba(0,0,0,0.4);
   --transition: 150ms ease;
 }
+[data-theme="light"] {
+  --bg: #f5f5f7;
+  --bg2: #eeeef0;
+  --bg3: #e5e5ea;
+  --sidebar-bg: #f0f0f2;
+  --surface: #ffffff;
+  --surface2: #f5f5f7;
+  --border: #d1d1d6;
+  --border-hover: #b0b0b8;
+  --text: #1c1c1e;
+  --text2: #636366;
+  --text3: #aeaeb2;
+  --accent: #3b82f6;
+  --accent-hover: #2563eb;
+  --accent-dim: rgba(59,130,246,0.10);
+  --green: #22c55e;
+  --green-dim: rgba(34,197,94,0.10);
+  --red: #ef4444;
+  --red-dim: rgba(239,68,68,0.10);
+  --yellow: #eab308;
+  --orange: #f97316;
+  --shadow: 0 4px 24px rgba(0,0,0,0.08);
+}
 * { margin: 0; padding: 0; box-sizing: border-box; }
 body {
   font-family: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', system-ui, sans-serif;
@@ -758,6 +781,13 @@ input:read-only { opacity: 0.5; cursor: default; }
       <span class="acai-label" id="acaiSidebarLabel">Sin conectar</span>
     </div>
   </div>
+
+  <div style="padding: 12px 10px; border-top: 1px solid var(--border); margin-top: auto;">
+    <div class="nav-item" onclick="showPage('settings', this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+      Ajustes
+    </div>
+  </div>
 </aside>
 
 <!-- ---- Main ---- -->
@@ -939,10 +969,107 @@ input:read-only { opacity: 0.5; cursor: default; }
         </div>
       </div>
 
-      <p style="color:var(--text2); font-size:13px; margin-bottom:16px;">Carpetas en <strong>~/webs/</strong></p>
+      <p style="color:var(--text2); font-size:13px; margin-bottom:16px;" id="websBaseLabel">Carpetas en <strong>~/webs/</strong></p>
       <div id="localWebsList">
         <div class="empty-state">Cargando...</div>
       </div>
+    </div>
+  </div>
+
+  <!-- ====== PAGE: Ajustes ====== -->
+  <div class="page" id="page-settings">
+    <div class="main-header">
+      <h2>Ajustes</h2>
+    </div>
+    <div class="main-content">
+
+      <div class="card">
+        <div class="card-header">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+          General
+        </div>
+        <div class="card-body">
+          <div class="form-row full">
+            <div class="form-group">
+              <label>Directorio base de webs</label>
+              <div class="path-selector">
+                <input type="text" id="settingsWebsDir" placeholder="~/webs">
+                <button class="btn btn-secondary btn-sm" onclick="openBrowser('settings-webs-dir')">Explorar</button>
+              </div>
+            </div>
+          </div>
+          <div class="form-row full">
+            <div class="form-group">
+              <label>Intervalo de refresco (segundos)</label>
+              <input type="number" id="settingsRefreshInterval" placeholder="15" min="1" max="300" style="max-width:120px">
+            </div>
+          </div>
+          <div class="form-row full">
+            <div class="form-group">
+              <label>Tema</label>
+              <div class="toggle-row" style="margin-bottom:0">
+                <div class="toggle-switch" id="toggleTheme" onclick="this.classList.toggle('on'); document.getElementById('toggleThemeLabel').textContent = this.classList.contains('on') ? 'Claro' : 'Oscuro';"></div>
+                <span class="toggle-label" id="toggleThemeLabel">Oscuro</span>
+              </div>
+            </div>
+          </div>
+          <div class="form-row full">
+            <div class="form-group">
+              <label>Ruta docker-web.sh</label>
+              <div class="path-selector">
+                <input type="text" id="settingsDockerWebSh" placeholder="Por defecto: ../docker-web.sh">
+                <button class="btn btn-secondary btn-sm" onclick="openBrowser('settings-docker-sh')">Explorar</button>
+              </div>
+            </div>
+          </div>
+          <div class="form-row full">
+            <div class="form-group">
+              <label>Directorio web-base</label>
+              <div class="path-selector">
+                <input type="text" id="settingsWebBaseDir" placeholder="Por defecto: ../web-base">
+                <button class="btn btn-secondary btn-sm" onclick="openBrowser('settings-web-base')">Explorar</button>
+              </div>
+            </div>
+          </div>
+          <div class="actions-row">
+            <button class="btn btn-primary" onclick="saveSettingsGeneral()">Guardar</button>
+            <span id="settingsGeneralStatus" style="font-size:13px;color:var(--green);display:none;">Guardado</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+          Acai Code
+        </div>
+        <div class="card-body">
+          <div class="form-row full">
+            <div class="form-group">
+              <label>Usuario Acai</label>
+              <input type="text" id="settingsAcaiUsername" placeholder="usuario@email.com">
+            </div>
+          </div>
+          <div class="form-row full">
+            <div class="form-group">
+              <label>Contraseña Acai</label>
+              <input type="password" id="settingsAcaiPassword" placeholder="Sin contraseña guardada">
+            </div>
+          </div>
+          <div class="form-row full">
+            <div class="form-group">
+              <label>Clave MySQL por defecto</label>
+              <input type="password" id="settingsMysqlPassword" placeholder="Sin contraseña guardada">
+            </div>
+          </div>
+          <div class="actions-row">
+            <button class="btn btn-primary" onclick="saveSettingsAcai()">Guardar</button>
+            <span id="settingsAcaiStatus" style="font-size:13px;color:var(--green);display:none;">Guardado</span>
+          </div>
+          <p style="color:var(--text3); font-size:12px; margin-top:12px;">Las contraseñas se guardan en el Keychain de macOS</p>
+        </div>
+      </div>
+
     </div>
   </div>
 
@@ -1073,12 +1200,30 @@ function showPage(pageId, navEl) {
   const page = document.getElementById('page-' + pageId);
   if (page) page.classList.add('active');
   if (navEl) navEl.classList.add('active');
+  if (pageId === 'settings') loadSettings();
 }
 
 // ---- Acai Modal ----
-function openAcaiModal() {
+async function openAcaiModal() {
   showPage('webs-locales', document.querySelectorAll('.nav-item')[2]);
   syncAcaiModalState();
+  // Prefill from saved settings if fields are empty
+  if (!acaiSession.hash) {
+    try {
+      const settings = await api('/api/settings');
+      const usernameEl = document.getElementById('acaiUsername');
+      if (!usernameEl.value && settings.acai_username) {
+        usernameEl.value = settings.acai_username;
+      }
+      if (settings.has_acai_password) {
+        const passEl = document.getElementById('acaiPassword');
+        if (!passEl.value) {
+          const pw = await api('/api/settings/passwords');
+          if (pw.acai_password) passEl.value = pw.acai_password;
+        }
+      }
+    } catch (e) { /* ignore */ }
+  }
   openModal('acaiModal');
 }
 
@@ -1110,6 +1255,7 @@ function updateAcaiUI() {
     if (!document.getElementById('pullDestDir').value) {
       document.getElementById('pullDestDir').value = '~/webs/' + acaiSession.domain.domain;
     }
+    prefillMysqlPassword();
   } else if (acaiSession.hash) {
     connNone.style.display = 'none';
     connOk.style.display = 'flex';
@@ -1231,13 +1377,24 @@ async function executeAction(action, projectDir) {
 function openBrowser(mode) {
   browserMode = mode;
   browserSelected = null;
-  const title = mode === 'project' ? 'Seleccionar carpeta del proyecto' : 'Seleccionar archivo .sql';
+  let title, startPath;
+  if (mode === 'project') {
+    title = 'Seleccionar carpeta del proyecto';
+    startPath = document.getElementById('projectDir').value || homeDir();
+  } else if (mode === 'settings-webs-dir') {
+    title = 'Seleccionar directorio de webs';
+    startPath = document.getElementById('settingsWebsDir').value || homeDir();
+  } else if (mode === 'settings-web-base') {
+    title = 'Seleccionar directorio web-base';
+    startPath = document.getElementById('settingsWebBaseDir').value || homeDir();
+  } else if (mode === 'settings-docker-sh') {
+    title = 'Seleccionar docker-web.sh';
+    startPath = document.getElementById('settingsDockerWebSh').value ? dirname(document.getElementById('settingsDockerWebSh').value) : homeDir();
+  } else {
+    title = 'Seleccionar archivo .sql';
+    startPath = document.getElementById('sqlFile').value ? dirname(document.getElementById('sqlFile').value) : homeDir();
+  }
   document.getElementById('browserTitle').textContent = title;
-
-  const startPath = mode === 'project'
-    ? (document.getElementById('projectDir').value || homeDir())
-    : (document.getElementById('sqlFile').value ? dirname(document.getElementById('sqlFile').value) : homeDir());
-
   loadBrowser(startPath);
   openModal('browserModal');
 }
@@ -1249,8 +1406,12 @@ function dirname(p) {
 }
 
 async function loadBrowser(path) {
-  const endpoint = browserMode === 'sql' ? '/api/browse-files' : '/api/browse';
-  const url = `${endpoint}?path=${encodeURIComponent(path)}${browserMode === 'sql' ? '&ext=sql' : ''}`;
+  const isDirMode = ['project', 'settings-webs-dir', 'settings-web-base'].includes(browserMode);
+  const isShMode = browserMode === 'settings-docker-sh';
+  const endpoint = (browserMode === 'sql' || isShMode) ? '/api/browse-files' : '/api/browse';
+  let url = `${endpoint}?path=${encodeURIComponent(path)}`;
+  if (browserMode === 'sql') url += '&ext=sql';
+  if (isShMode) url += '&ext=sh';
   const data = await api(url);
 
   if (data.error) {
@@ -1259,7 +1420,7 @@ async function loadBrowser(path) {
   }
 
   document.getElementById('browserPath').textContent = data.current;
-  browserSelected = (browserMode === 'project') ? data.current : null;
+  browserSelected = isDirMode ? data.current : null;
 
   const list = document.getElementById('browserList');
   let html = '';
@@ -1301,7 +1462,7 @@ function selectFile(el, path) {
 
 function updateSelectButton() {
   const btn = document.getElementById('browserSelect');
-  if (browserMode === 'project') {
+  if (['project', 'settings-webs-dir', 'settings-web-base'].includes(browserMode)) {
     btn.textContent = 'Seleccionar esta carpeta';
   } else {
     btn.textContent = browserSelected ? 'Seleccionar archivo' : 'Seleccionar';
@@ -1312,6 +1473,12 @@ function selectBrowserItem() {
   if (!browserSelected) return;
   if (browserMode === 'project') {
     document.getElementById('projectDir').value = browserSelected;
+  } else if (browserMode === 'settings-webs-dir') {
+    document.getElementById('settingsWebsDir').value = browserSelected;
+  } else if (browserMode === 'settings-web-base') {
+    document.getElementById('settingsWebBaseDir').value = browserSelected;
+  } else if (browserMode === 'settings-docker-sh') {
+    document.getElementById('settingsDockerWebSh').value = browserSelected;
   } else {
     document.getElementById('sqlFile').value = browserSelected;
   }
@@ -1675,6 +1842,7 @@ function renderLocalWebCard(w) {
       </div>
       <div class="local-web-actions">
         ${w.acai ? `<button class="btn btn-primary btn-sm" id="launch-${escapeAttr(w.name)}" onclick="launchAcaiWeb('${escapeAttr(w.path)}', ${!!w.has_db})" ${w.running ? 'disabled title="Ya está en ejecución"' : ''}>Levantar</button>` : ''}
+        ${w.running ? `<button class="btn btn-secondary btn-sm" onclick="openInVSCode('${escapeAttr(w.path)}')">VSCode</button>` : ''}
         <button class="btn btn-secondary btn-sm" onclick="openLocalWebFolder('${escapeAttr(w.path)}')">Abrir carpeta</button>
         <button class="btn btn-danger btn-sm" onclick="confirmDeleteLocalWeb('${escapeAttr(w.path)}', '${escapeAttr(w.name)}')" ${w.running ? 'disabled title="Para el proyecto primero"' : ''}>Eliminar</button>
       </div>
@@ -1683,6 +1851,13 @@ function renderLocalWebCard(w) {
 
 async function openLocalWebFolder(path) {
   await api('/api/local-webs/open', {
+    method: 'POST',
+    body: JSON.stringify({ path }),
+  });
+}
+
+async function openInVSCode(path) {
+  await api('/api/local-webs/vscode', {
     method: 'POST',
     body: JSON.stringify({ path }),
   });
@@ -1759,10 +1934,118 @@ async function launchAcaiWeb(path, hasDb) {
   }
 }
 
+// ---- Settings ----
+let appSettings = {};
+
+async function loadSettings() {
+  try {
+    const data = await api('/api/settings');
+    appSettings = data;
+    document.getElementById('settingsWebsDir').value = data.webs_dir || '~/webs';
+    document.getElementById('settingsRefreshInterval').value = data.refresh_interval || 15;
+    document.getElementById('settingsAcaiUsername').value = data.acai_username || '';
+    // Theme toggle
+    const isLight = data.theme === 'light';
+    const toggle = document.getElementById('toggleTheme');
+    toggle.classList.toggle('on', isLight);
+    document.getElementById('toggleThemeLabel').textContent = isLight ? 'Claro' : 'Oscuro';
+    // Paths
+    document.getElementById('settingsDockerWebSh').value = data.docker_web_sh || '';
+    document.getElementById('settingsWebBaseDir').value = data.web_base_dir || '';
+    // Password placeholders
+    document.getElementById('settingsAcaiPassword').value = '';
+    document.getElementById('settingsAcaiPassword').placeholder = data.has_acai_password ? 'Contraseña guardada (dejar vacío para mantener)' : 'Sin contraseña guardada';
+    document.getElementById('settingsMysqlPassword').value = '';
+    document.getElementById('settingsMysqlPassword').placeholder = data.has_mysql_password ? 'Contraseña guardada (dejar vacío para mantener)' : 'Sin contraseña guardada';
+  } catch (e) { /* ignore */ }
+}
+
+async function saveSettingsGeneral() {
+  const theme = document.getElementById('toggleTheme').classList.contains('on') ? 'light' : 'dark';
+  const body = {
+    webs_dir: document.getElementById('settingsWebsDir').value.trim() || '~/webs',
+    refresh_interval: parseInt(document.getElementById('settingsRefreshInterval').value) || 15,
+    theme: theme,
+    docker_web_sh: document.getElementById('settingsDockerWebSh').value.trim(),
+    web_base_dir: document.getElementById('settingsWebBaseDir').value.trim(),
+  };
+  try {
+    await api('/api/settings', { method: 'POST', body: JSON.stringify(body) });
+    applyRefreshInterval(body.refresh_interval);
+    applyTheme(theme);
+    flashStatus('settingsGeneralStatus');
+  } catch (e) { /* ignore */ }
+}
+
+async function saveSettingsAcai() {
+  const body = {
+    acai_username: document.getElementById('settingsAcaiUsername').value.trim(),
+  };
+  // Only send passwords if user typed something (empty string = delete from keychain)
+  const acaiPw = document.getElementById('settingsAcaiPassword').value;
+  const mysqlPw = document.getElementById('settingsMysqlPassword').value;
+  if (acaiPw !== '') body.acai_password = acaiPw;
+  if (mysqlPw !== '') body.mysql_password = mysqlPw;
+  try {
+    await api('/api/settings', { method: 'POST', body: JSON.stringify(body) });
+    flashStatus('settingsAcaiStatus');
+    loadSettings(); // refresh placeholders
+  } catch (e) { /* ignore */ }
+}
+
+function applyTheme(theme) {
+  if (theme === 'light') {
+    document.documentElement.setAttribute('data-theme', 'light');
+  } else {
+    document.documentElement.removeAttribute('data-theme');
+  }
+}
+
+function flashStatus(id) {
+  const el = document.getElementById(id);
+  el.style.display = 'inline';
+  setTimeout(() => { el.style.display = 'none'; }, 2000);
+}
+
+// ---- Refresh timer ----
+let refreshTimer = null;
+
+function applyRefreshInterval(seconds) {
+  if (refreshTimer) clearInterval(refreshTimer);
+  refreshTimer = setInterval(refreshProjects, (seconds || 15) * 1000);
+}
+
+// ---- MySQL prefill ----
+async function prefillMysqlPassword() {
+  try {
+    const settings = await api('/api/settings');
+    if (settings.has_mysql_password) {
+      const pw = await api('/api/settings/passwords');
+      if (pw.mysql_password) {
+        const el = document.getElementById('pullDbPassword');
+        if (!el.value) el.value = pw.mysql_password;
+      }
+    }
+  } catch (e) { /* ignore */ }
+}
+
 // ---- Init ----
-refreshProjects();
-refreshLocalWebs();
-setInterval(refreshProjects, 15000);
+async function initApp() {
+  refreshProjects();
+  refreshLocalWebs();
+  try {
+    const settings = await api('/api/settings');
+    appSettings = settings;
+    applyRefreshInterval(settings.refresh_interval || 15);
+    applyTheme(settings.theme || 'dark');
+    if (settings.webs_dir) {
+      document.getElementById('websBaseLabel').innerHTML = 'Carpetas en <strong>' + escapeHtml(settings.webs_dir) + '</strong>';
+    }
+  } catch (e) {
+    applyRefreshInterval(15);
+  }
+}
+initApp();
 </script>
 </body>
 </html>

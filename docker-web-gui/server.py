@@ -15,17 +15,111 @@ import socket
 import ssl
 import subprocess
 import sys
+import threading
+import time
 import urllib.parse
 import urllib.request
 import zipfile
 from pathlib import Path
 
 SCRIPT_DIR = Path(__file__).resolve().parent
-DOCKER_WEB_SH = SCRIPT_DIR.parent / "docker-web.sh"
-WEB_BASE_DIR = SCRIPT_DIR.parent / "web-base"
 DEFAULT_WEBS_DIR = Path.home() / "webs"
 DEFAULT_PORT = 9090
 ACAI_AUTH_URL = "https://ws.cocosolution.com/api/auth/"
+
+CONFIG_DIR = Path.home() / ".docker-web-gui"
+CONFIG_FILE = CONFIG_DIR / "config.json"
+KEYCHAIN_SERVICE = "docker-web-gui"
+
+DEFAULT_CONFIG = {
+    "webs_dir": "~/webs",
+    "refresh_interval": 15,
+    "acai_username": "",
+    "theme": "dark",
+    "web_base_dir": "",
+    "docker_web_sh": "",
+}
+
+
+def load_config():
+    """Load config from ~/.docker-web-gui/config.json, returning defaults if missing."""
+    try:
+        if CONFIG_FILE.exists():
+            with open(str(CONFIG_FILE), "r", encoding="utf-8") as f:
+                saved = json.load(f)
+            config = dict(DEFAULT_CONFIG)
+            config.update(saved)
+            return config
+    except Exception:
+        pass
+    return dict(DEFAULT_CONFIG)
+
+
+def save_config(config):
+    """Save config to ~/.docker-web-gui/config.json with restricted permissions."""
+    try:
+        os.makedirs(str(CONFIG_DIR), mode=0o700, exist_ok=True)
+        tmp = str(CONFIG_FILE) + ".tmp"
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump(config, f, ensure_ascii=False, indent=2)
+        os.chmod(tmp, 0o600)
+        os.replace(tmp, str(CONFIG_FILE))
+    except Exception as e:
+        raise RuntimeError("Error saving config: {}".format(e))
+
+
+def get_webs_dir():
+    """Return the configured webs directory as a Path."""
+    config = load_config()
+    return Path(os.path.expanduser(config.get("webs_dir", "~/webs")))
+
+
+def get_web_base_dir():
+    """Return the configured web-base directory, or the default relative to SCRIPT_DIR."""
+    config = load_config()
+    val = config.get("web_base_dir", "")
+    if val:
+        return Path(os.path.expanduser(val)).resolve()
+    return SCRIPT_DIR.parent / "web-base"
+
+
+def get_docker_web_sh():
+    """Return the configured docker-web.sh path, or the default relative to SCRIPT_DIR."""
+    config = load_config()
+    val = config.get("docker_web_sh", "")
+    if val:
+        return Path(os.path.expanduser(val)).resolve()
+    return SCRIPT_DIR.parent / "docker-web.sh"
+
+
+def keychain_get(account):
+    """Read a password from macOS Keychain. Returns None if not found."""
+    try:
+        proc = subprocess.run(
+            ["security", "find-generic-password", "-s", KEYCHAIN_SERVICE, "-a", account, "-w"],
+            capture_output=True, text=True, timeout=10,
+        )
+        if proc.returncode == 0:
+            return proc.stdout.strip()
+    except Exception:
+        pass
+    return None
+
+
+def keychain_set(account, password):
+    """Store a password in macOS Keychain (-U updates if exists)."""
+    subprocess.run(
+        ["security", "add-generic-password", "-U", "-s", KEYCHAIN_SERVICE, "-a", account, "-w", password],
+        capture_output=True, text=True, timeout=10,
+    )
+
+
+def keychain_delete(account):
+    """Delete a password from macOS Keychain. Ignores errors if not found."""
+    subprocess.run(
+        ["security", "delete-generic-password", "-s", KEYCHAIN_SERVICE, "-a", account],
+        capture_output=True, text=True, timeout=10,
+    )
 
 
 _ssl_ctx_cache = None
@@ -264,7 +358,7 @@ def get_projects():
 
 def sanitize_path(path_str):
     """Valida que el path sea un directorio real y no escape."""
-    p = Path(path_str).resolve()
+    p = Path(os.path.expanduser(path_str)).resolve()
     if not p.exists():
         return None
     return str(p)
@@ -319,6 +413,10 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self.handle_browse(qs)
         elif path == "/api/browse-files":
             self.handle_browse_files(qs)
+        elif path == "/api/settings":
+            self.handle_get_settings()
+        elif path == "/api/settings/passwords":
+            self.handle_get_passwords()
         else:
             self.send_error_json("Not found", 404)
 
@@ -337,12 +435,16 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self.handle_local_webs_delete(body)
         elif path == "/api/local-webs/open":
             self.handle_local_webs_open(body)
+        elif path == "/api/local-webs/vscode":
+            self.handle_local_webs_vscode(body)
         elif path == "/api/acai/login":
             self.handle_acai_login(body)
         elif path == "/api/acai/select-domain":
             self.handle_acai_select_domain(body)
         elif path == "/api/acai/pull-web":
             self.handle_acai_pull_web(body)
+        elif path == "/api/settings":
+            self.handle_save_settings(body)
         else:
             self.send_error_json("Not found", 404)
 
@@ -468,7 +570,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self.send_error_json("Invalid project directory")
             return
 
-        args = [str(DOCKER_WEB_SH), path]
+        args = [str(get_docker_web_sh()), path]
 
         # SQL local
         sql_file = body.get("sql_file", "")
@@ -533,7 +635,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self.send_error_json("Invalid project directory")
             return
 
-        rc, out, err = run_cmd([str(DOCKER_WEB_SH), path, "--stop"], timeout=60)
+        rc, out, err = run_cmd([str(get_docker_web_sh()), path, "--stop"], timeout=60)
         ansi_escape = re.compile(r'\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])')
         clean_out = ansi_escape.sub('', out + err)
 
@@ -553,7 +655,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self.send_error_json("Invalid project directory")
             return
 
-        rc, out, err = run_cmd([str(DOCKER_WEB_SH), path, "--destroy"], timeout=60)
+        rc, out, err = run_cmd([str(get_docker_web_sh()), path, "--destroy"], timeout=60)
         ansi_escape = re.compile(r'\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])')
         clean_out = ansi_escape.sub('', out + err)
 
@@ -566,8 +668,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
     # ---- Local Webs ----
 
     def handle_local_webs(self):
-        """List folders inside ~/webs/."""
-        webs_dir = DEFAULT_WEBS_DIR
+        """List folders inside the configured webs directory."""
+        webs_dir = get_webs_dir()
         if not webs_dir.is_dir():
             self.send_json({"webs": []})
             return
@@ -624,9 +726,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self.send_error_json("path is required")
             return
         p = Path(folder).resolve()
-        # Safety: must be inside ~/webs/
-        if not str(p).startswith(str(DEFAULT_WEBS_DIR.resolve())):
-            self.send_error_json("Path must be inside ~/webs/")
+        webs_dir = get_webs_dir()
+        if not str(p).startswith(str(webs_dir.resolve())):
+            self.send_error_json("Path must be inside {}".format(webs_dir))
             return
         if not p.is_dir():
             self.send_error_json("Directory not found")
@@ -644,8 +746,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self.send_error_json("path is required")
             return
         p = Path(folder).resolve()
-        if not str(p).startswith(str(DEFAULT_WEBS_DIR.resolve())):
-            self.send_error_json("Path must be inside ~/webs/")
+        webs_dir = get_webs_dir()
+        if not str(p).startswith(str(webs_dir.resolve())):
+            self.send_error_json("Path must be inside {}".format(webs_dir))
             return
         if not p.is_dir():
             self.send_error_json("Directory not found")
@@ -655,6 +758,81 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self.send_json({"success": True})
         except Exception as e:
             self.send_json({"success": False, "error": str(e)})
+
+    def handle_local_webs_vscode(self, body):
+        """Open a folder in Visual Studio Code."""
+        folder = body.get("path", "")
+        if not folder:
+            self.send_error_json("path is required")
+            return
+        p = Path(folder).resolve()
+        if not p.is_dir():
+            self.send_error_json("Directory not found")
+            return
+        try:
+            subprocess.Popen(["open", "-a", "Visual Studio Code", str(p)])
+            self.send_json({"success": True})
+        except Exception as e:
+            self.send_json({"success": False, "error": str(e)})
+
+    # ---- Settings ----
+
+    def handle_get_settings(self):
+        """GET /api/settings — return config + credential flags."""
+        config = load_config()
+        config["has_acai_password"] = keychain_get("acai") is not None
+        config["has_mysql_password"] = keychain_get("mysql") is not None
+        self.send_json(config)
+
+    def handle_save_settings(self, body):
+        """POST /api/settings — save config and optionally credentials."""
+        config = load_config()
+        if "webs_dir" in body:
+            config["webs_dir"] = body["webs_dir"]
+        if "refresh_interval" in body:
+            try:
+                val = int(body["refresh_interval"])
+                if val >= 1:
+                    config["refresh_interval"] = val
+            except (ValueError, TypeError):
+                pass
+        if "acai_username" in body:
+            config["acai_username"] = body["acai_username"]
+        if "theme" in body:
+            config["theme"] = body["theme"] if body["theme"] in ("dark", "light") else "dark"
+        if "web_base_dir" in body:
+            config["web_base_dir"] = body["web_base_dir"]
+        if "docker_web_sh" in body:
+            config["docker_web_sh"] = body["docker_web_sh"]
+
+        try:
+            save_config(config)
+        except RuntimeError as e:
+            self.send_error_json(str(e), 500)
+            return
+
+        # Handle Keychain credentials
+        if "acai_password" in body:
+            pw = body["acai_password"]
+            if pw:
+                keychain_set("acai", pw)
+            else:
+                keychain_delete("acai")
+        if "mysql_password" in body:
+            pw = body["mysql_password"]
+            if pw:
+                keychain_set("mysql", pw)
+            else:
+                keychain_delete("mysql")
+
+        self.send_json({"success": True})
+
+    def handle_get_passwords(self):
+        """GET /api/settings/passwords — return stored passwords for prefill."""
+        self.send_json({
+            "acai_password": keychain_get("acai") or "",
+            "mysql_password": keychain_get("mysql") or "",
+        })
 
     # ---- Acai Code Auth ----
 
@@ -764,13 +942,14 @@ class Handler(http.server.BaseHTTPRequestHandler):
 
         # Default destination
         if not dest_dir:
-            dest_dir = str(DEFAULT_WEBS_DIR / domain)
+            dest_dir = str(get_webs_dir() / domain)
 
         dest = Path(dest_dir).expanduser().resolve()
 
         # Check web-base exists
-        if not WEB_BASE_DIR.exists():
-            self.send_error_json("web-base not found at {}".format(WEB_BASE_DIR))
+        web_base = get_web_base_dir()
+        if not web_base.exists():
+            self.send_error_json("web-base not found at {}".format(web_base))
             return
 
         steps = []
@@ -976,12 +1155,131 @@ class Handler(http.server.BaseHTTPRequestHandler):
         })
 
 
+# ---- Module watcher ----
+
+def _scan_modules_mtimes(projects):
+    """Scan modulos/ dirs of running projects and return {filepath: mtime}."""
+    mtimes = {}
+    for proj in projects:
+        proj_dir = proj.get("project_dir", "")
+        if not proj_dir:
+            continue
+        modulos_dir = Path(proj_dir) / "modulos"
+        if not modulos_dir.is_dir():
+            continue
+        for f in modulos_dir.rglob("*"):
+            if f.is_file():
+                try:
+                    mtimes[str(f)] = f.stat().st_mtime
+                except OSError:
+                    pass
+    return mtimes
+
+
+def _on_module_changed(changed_files):
+    """Called when module files change. TODO: implement sync/push logic."""
+    for filepath in changed_files:
+        print("[watcher] Module changed: {}".format(filepath))
+    sys.stdout.flush()
+
+
+def start_module_watcher(interval=2):
+    """Start a background thread that watches modulos/ in running projects."""
+    def _watch_loop():
+        mtimes = {}
+        while True:
+            time.sleep(interval)
+            try:
+                projects = get_projects()
+            except Exception:
+                continue
+            new_mtimes = _scan_modules_mtimes(projects)
+            if mtimes:
+                changed = [
+                    f for f in new_mtimes
+                    if new_mtimes.get(f) != mtimes.get(f)
+                ]
+                # Also detect new files
+                new_files = [f for f in new_mtimes if f not in mtimes]
+                all_changed = list(set(changed + new_files))
+                if all_changed:
+                    _on_module_changed(all_changed)
+            mtimes = new_mtimes
+
+    t = threading.Thread(target=_watch_loop, daemon=True)
+    t.start()
+    print("Module watcher active (interval={}s)".format(interval))
+    sys.stdout.flush()
+    return t
+
+
+def _get_watch_files():
+    """Return dict {filepath: mtime} for files to watch in reload mode."""
+    mtimes = {}
+    for pattern in ("*.py", "*.html"):
+        for f in SCRIPT_DIR.glob(pattern):
+            try:
+                mtimes[str(f)] = f.stat().st_mtime
+            except OSError:
+                pass
+    return mtimes
+
+
+def _run_reload(port_arg):
+    """Watcher loop: spawn server subprocess and restart on file changes."""
+    args = [sys.executable, str(Path(__file__).resolve()), str(port_arg)]
+    env = dict(os.environ, _RELOAD_CHILD="1")
+
+    while True:
+        mtimes = _get_watch_files()
+        print("[reload] Starting server...")
+        sys.stdout.flush()
+        proc = subprocess.Popen(args, env=env)
+        try:
+            while True:
+                time.sleep(1)
+                # Check if process died
+                if proc.poll() is not None:
+                    print("[reload] Server exited (code {}), restarting...".format(proc.returncode))
+                    sys.stdout.flush()
+                    break
+                # Check file changes
+                new_mtimes = _get_watch_files()
+                if new_mtimes != mtimes:
+                    changed = [f for f in new_mtimes if new_mtimes.get(f) != mtimes.get(f)]
+                    print("[reload] Change detected: {}".format(", ".join(Path(f).name for f in changed)))
+                    sys.stdout.flush()
+                    proc.terminate()
+                    proc.wait(timeout=5)
+                    break
+        except KeyboardInterrupt:
+            proc.terminate()
+            proc.wait(timeout=5)
+            print("\nShutting down...")
+            sys.exit(0)
+
+
 def main():
-    port = int(sys.argv[1]) if len(sys.argv) > 1 else DEFAULT_PORT
+    # Parse args
+    args = sys.argv[1:]
+    reload_mode = "--reload" in args
+    if reload_mode:
+        args.remove("--reload")
+
+    port = int(args[0]) if args else DEFAULT_PORT
+
+    # If reload mode and not the child, run the watcher
+    if reload_mode and os.environ.get("_RELOAD_CHILD") != "1":
+        _run_reload(port)
+        return
+
     port = find_free_port(port)
 
     server = http.server.HTTPServer(("127.0.0.1", port), Handler)
     print("Docker Web GUI running at http://localhost:{}".format(port))
+    if os.environ.get("_RELOAD_CHILD") == "1":
+        print("Auto-reload active")
+    start_module_watcher()
     print("Press Ctrl+C to stop")
     sys.stdout.flush()
 
