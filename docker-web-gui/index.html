@@ -525,6 +525,29 @@ input:read-only { opacity: 0.6; cursor: default; }
         <div style="margin-bottom:12px; font-size:14px; color:var(--text2);">Selecciona una web para conectarte:</div>
         <div class="acai-domains-grid" id="acaiDomainsList"></div>
         <div id="acaiDomainStatus"></div>
+
+        <!-- Pull Web section (visible after domain selection with token) -->
+        <div id="acaiPullSection" style="display:none">
+          <div style="border-top: 1px solid var(--border); margin-top: 16px; padding-top: 16px;">
+            <div style="font-size: 15px; font-weight: 600; margin-bottom: 12px;">Traer Web</div>
+            <div class="form-row full">
+              <div class="form-group">
+                <label>Directorio destino</label>
+                <input type="text" id="pullDestDir" placeholder="~/webs/dominio.com">
+              </div>
+            </div>
+            <div class="toggle-row">
+              <div class="toggle-switch" id="toggleUploads" onclick="this.classList.toggle('on')"></div>
+              <span class="toggle-label">Incluir uploads (imagenes, archivos subidos)</span>
+            </div>
+            <div class="actions-row">
+              <button class="btn btn-primary" id="pullWebBtn" onclick="pullWeb()">Traer Web</button>
+            </div>
+            <div class="output-panel" id="pullWebOutput">
+              <div class="log-output" id="pullWebLog"></div>
+            </div>
+          </div>
+        </div>
       </div>
 
     </div>
@@ -1124,6 +1147,13 @@ async function acaiSelectDomain(domainNum, domainName) {
       'Conectado a ' + (data.domain.domain || domainName) + userInfo + ' — Token obtenido');
 
     renderDomains();
+
+    // Show pull section with default dest dir
+    document.getElementById('acaiPullSection').style.display = 'block';
+    document.getElementById('pullDestDir').value = '~/webs/' + (data.domain.domain || domainName);
+    // Reset pull output
+    document.getElementById('pullWebOutput').classList.remove('visible');
+    document.getElementById('pullWebLog').textContent = '';
   } catch (e) {
     showAcaiStatus('acaiDomainStatus', 'error', 'Error: ' + e.message);
   }
@@ -1133,9 +1163,82 @@ function acaiLogout() {
   acaiSession = { username: '', hash: '', domains: [], token: '', tokenHash: '', domain: null, user: null };
   document.getElementById('acaiLoginSection').style.display = 'block';
   document.getElementById('acaiDomainsSection').style.display = 'none';
+  document.getElementById('acaiPullSection').style.display = 'none';
   document.getElementById('acaiPassword').value = '';
   document.getElementById('acaiLoginStatus').innerHTML = '';
   document.getElementById('acaiDomainStatus').innerHTML = '';
+}
+
+async function pullWeb() {
+  if (!acaiSession.token || !acaiSession.domain) {
+    showAcaiStatus('acaiDomainStatus', 'error', 'Selecciona un dominio primero');
+    return;
+  }
+
+  const destDir = document.getElementById('pullDestDir').value.trim();
+  const includeUploads = document.getElementById('toggleUploads').classList.contains('on');
+
+  const btn = document.getElementById('pullWebBtn');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span> Descargando...';
+
+  const outputPanel = document.getElementById('pullWebOutput');
+  const logEl = document.getElementById('pullWebLog');
+  outputPanel.classList.add('visible');
+  logEl.textContent = 'Iniciando descarga de ' + acaiSession.domain.domain + '...\n';
+
+  try {
+    const data = await api('/api/acai/pull-web', {
+      method: 'POST',
+      body: JSON.stringify({
+        domain: acaiSession.domain.domain,
+        ssl: acaiSession.domain.ssl,
+        token: acaiSession.token,
+        tokenHash: acaiSession.tokenHash,
+        dest_dir: destDir || '',
+        include_uploads: includeUploads,
+      }),
+    });
+
+    if (data.success) {
+      let output = 'Web descargada correctamente!\n\n';
+      if (data.steps) output += data.steps.join('\n') + '\n';
+      if (data.errors && data.errors.length) {
+        output += '\nAvisos:\n' + data.errors.join('\n') + '\n';
+      }
+      output += '\n--- Resumen ---\n';
+      output += 'Directorio: ' + data.project_dir + '\n';
+      output += 'Modulos: ' + data.modules_count + '\n';
+      output += 'Hooks: ' + data.hooks_count + '\n';
+      if (data.uploads_count) output += 'Uploads: ' + data.uploads_count + '\n';
+      logEl.textContent = output;
+
+      // Auto-fill Nuevo Proyecto form
+      document.getElementById('projectDir').value = data.project_dir;
+
+      // Enable Redis (all Acai webs use it)
+      const redisToggle = document.getElementById('toggleRedis');
+      if (!redisToggle.classList.contains('on')) redisToggle.classList.add('on');
+
+      // Auto-fill remote DB if available
+      if (acaiSession.domain.mysql_host) {
+        document.getElementById('remoteHost').value = acaiSession.domain.mysql_host;
+        document.getElementById('remoteUser').value = acaiSession.domain.mysql_user || '';
+        document.getElementById('remotePass').value = acaiSession.domain.mysql_pass || '';
+        document.getElementById('remoteDbname').value = acaiSession.domain.mysql_db || '';
+        // Switch to remote tab
+        const remoteTab = document.querySelectorAll('.tab')[1];
+        if (remoteTab) switchTab('remote', remoteTab);
+      }
+    } else {
+      logEl.textContent = 'Error: ' + (data.error || JSON.stringify(data));
+    }
+  } catch (e) {
+    logEl.textContent = 'Error de conexion: ' + e.message;
+  }
+
+  btn.disabled = false;
+  btn.innerHTML = 'Traer Web';
 }
 
 function showAcaiStatus(elementId, type, message) {

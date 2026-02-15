@@ -304,8 +304,10 @@ RUN a2enmod rewrite headers deflate expires
 RUN sed -i '/<Directory \\/var\\/www\\/>/,/<\\/Directory>/ s/AllowOverride None/AllowOverride All/' /etc/apache2/apache2.conf && \\
     sed -i '/<Directory \\/var\\/www\\/>/,/<\\/Directory>/ s/Options Indexes FollowSymLinks/Options Indexes FollowSymLinks/' /etc/apache2/apache2.conf
 
-# ServerName
-RUN echo "ServerName localhost" >> /etc/apache2/apache2.conf
+# ServerName y MIME types extra
+RUN echo "ServerName localhost" >> /etc/apache2/apache2.conf && \\
+    echo "AddType text/css .vue" >> /etc/apache2/conf-available/custom-mime.conf && \\
+    a2enconf custom-mime
 
 # Cliente MariaDB para importar SQL
 RUN apt-get update && apt-get install -y mariadb-client && rm -rf /var/lib/apt/lists/*

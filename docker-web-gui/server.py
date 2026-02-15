@@ -6,19 +6,24 @@ Stdlib puro, sin dependencias externas.
 
 import base64
 import http.server
+import io
 import json
 import os
 import re
+import shutil
 import socket
 import ssl
 import subprocess
 import sys
 import urllib.parse
 import urllib.request
+import zipfile
 from pathlib import Path
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 DOCKER_WEB_SH = SCRIPT_DIR.parent / "docker-web.sh"
+WEB_BASE_DIR = SCRIPT_DIR.parent / "web-base"
+DEFAULT_WEBS_DIR = Path.home() / "webs"
 DEFAULT_PORT = 9090
 ACAI_AUTH_URL = "https://ws.cocosolution.com/api/auth/"
 
@@ -82,6 +87,62 @@ def acai_request(auth_header):
             return {"success": False, "error": "HTTP {}: {}".format(e.code, body[:200])}
     except Exception as e:
         return {"success": False, "error": str(e)}
+
+
+def acai_web_request(domain, ssl_enabled, payload, timeout=30):
+    """Makes a POST request to a remote Acai CMS viewer_functions.php endpoint."""
+    scheme = "https" if ssl_enabled else "http"
+    url = "{}://{}/cms/lib/viewer_functions.php".format(scheme, domain)
+    data = json.dumps(payload).encode()
+    req = urllib.request.Request(
+        url,
+        data=data,
+        headers={
+            "Content-Type": "application/json",
+            "Content-Length": str(len(data)),
+        },
+        method="POST",
+    )
+    ctx = _get_ssl_context()
+    try:
+        with urllib.request.urlopen(req, context=ctx, timeout=timeout) as resp:
+            return json.loads(resp.read().decode())
+    except urllib.error.HTTPError as e:
+        body = e.read().decode()
+        try:
+            return json.loads(body)
+        except json.JSONDecodeError:
+            return {"error": "HTTP {}: {}".format(e.code, body[:200])}
+    except Exception as e:
+        return {"error": str(e)}
+
+
+def save_hooks_from_api(hooks_data, hooks_dir):
+    """Save hooks from API response as .php files in hooks/ directory."""
+    os.makedirs(hooks_dir, exist_ok=True)
+    count = 0
+    for hook in hooks_data:
+        endpoint = hook.get("endPoint", "")
+        code = hook.get("code", "")
+        if not endpoint or not code or code == "code_hidden_for_security":
+            continue
+        # /api/search/ -> api.search.php
+        parts = [p for p in endpoint.strip("/").split("/") if p]
+        if not parts:
+            continue
+        filename = ".".join(parts) + ".php"
+        # |*<base64>*| -> raw PHP
+        if code.startswith("|*") and code.endswith("*|"):
+            code = code[2:-2]
+        try:
+            decoded = base64.b64decode(code).decode("utf-8", errors="replace")
+        except Exception:
+            continue
+        filepath = os.path.join(hooks_dir, filename)
+        with open(filepath, "w", encoding="utf-8") as f:
+            f.write(decoded)
+        count += 1
+    return count
 
 
 def find_free_port(start: int) -> int:
@@ -257,6 +318,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self.handle_acai_login(body)
         elif path == "/api/acai/select-domain":
             self.handle_acai_select_domain(body)
+        elif path == "/api/acai/pull-web":
+            self.handle_acai_pull_web(body)
         else:
             self.send_error_json("Not found", 404)
 
@@ -554,6 +617,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 "mysql_host": domain_info.get("mysql_host", ""),
                 "mysql_db": domain_info.get("mysql_db", ""),
                 "mysql_user": domain_info.get("mysql_user", ""),
+                "mysql_pass": domain_info.get("mysql_pass", domain_info.get("mysql_password", "")),
                 "ssl": domain_info.get("ssl", "0"),
             }
 
@@ -563,6 +627,169 @@ class Handler(http.server.BaseHTTPRequestHandler):
             "tokenHash": token_hash,
             "domain": domain_summary,
             "user": user_summary,
+        })
+
+    def handle_acai_pull_web(self, body):
+        """Pull a web from Acai: copy base + download modules, hooks, layout."""
+        domain = body.get("domain", "")
+        ssl_enabled = str(body.get("ssl", "1")) != "0"
+        token = body.get("token", "")
+        token_hash = body.get("tokenHash", "")
+        dest_dir = body.get("dest_dir", "")
+        include_uploads = body.get("include_uploads", False)
+
+        if not domain or not token or not token_hash:
+            self.send_error_json("domain, token, and tokenHash are required")
+            return
+
+        # Default destination
+        if not dest_dir:
+            dest_dir = str(DEFAULT_WEBS_DIR / domain)
+
+        dest = Path(dest_dir).expanduser().resolve()
+
+        # Check web-base exists
+        if not WEB_BASE_DIR.exists():
+            self.send_error_json("web-base not found at {}".format(WEB_BASE_DIR))
+            return
+
+        steps = []
+        errors = []
+        base_payload = {"token": token, "tokenHash": token_hash}
+
+        # Step 1: Copy web-base
+        try:
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            if dest.exists():
+                shutil.rmtree(str(dest))
+            shutil.copytree(
+                str(WEB_BASE_DIR), str(dest),
+                ignore=shutil.ignore_patterns('.git', '.docker', '.DS_Store'),
+            )
+            steps.append("Base copiada a {}".format(dest))
+        except Exception as e:
+            self.send_json({"success": False, "error": "Error copiando base: {}".format(e)})
+            return
+
+        # Step 2: Get layout data
+        try:
+            payload = dict(base_payload, action_ws="getLayoutData")
+            result = acai_web_request(domain, ssl_enabled, payload, timeout=30)
+            if result.get("data"):
+                layout_data = result["data"]
+                layout_path = dest / "cms" / "lib" / "plugins" / "builder_saas" / "layout.json"
+                layout_path.parent.mkdir(parents=True, exist_ok=True)
+                with open(str(layout_path), "w", encoding="utf-8") as f:
+                    json.dump(layout_data, f, ensure_ascii=False, indent=2)
+                steps.append("Layout descargado")
+            else:
+                errors.append("getLayoutData: {}".format(
+                    result.get("error", {}).get("message", "sin datos") if isinstance(result.get("error"), dict)
+                    else result.get("error", "sin datos")
+                ))
+        except Exception as e:
+            errors.append("Layout: {}".format(e))
+
+        # Step 3: Get hooks data and save as files
+        hooks_count = 0
+        try:
+            payload = dict(base_payload, action_ws="getHooksData")
+            result = acai_web_request(domain, ssl_enabled, payload, timeout=30)
+            hooks_data = result.get("data", [])
+            if isinstance(hooks_data, list) and hooks_data:
+                hooks_dir = str(dest / "hooks")
+                hooks_count = save_hooks_from_api(hooks_data, hooks_dir)
+                steps.append("{} hooks descargados".format(hooks_count))
+            else:
+                steps.append("Sin hooks")
+        except Exception as e:
+            errors.append("Hooks: {}".format(e))
+
+        # Step 4: List modules via getFTPFiles
+        modules_count = 0
+        module_errors = []
+        try:
+            payload = dict(base_payload, action_ws="getFTPFiles", path="template/estandar/modulos/")
+            result = acai_web_request(domain, ssl_enabled, payload, timeout=30)
+
+            # getFTPFiles returns an array of {filename, isDir, extension}
+            if isinstance(result, list):
+                module_names = [
+                    entry["filename"] for entry in result
+                    if entry.get("isDir") and entry["filename"] not in (".", "..")
+                ]
+                steps.append("{} modulos encontrados".format(len(module_names)))
+
+                # Clear existing modules from web-base copy
+                modules_dir = dest / "template" / "estandar" / "modulos"
+                if modules_dir.exists():
+                    shutil.rmtree(str(modules_dir))
+                modules_dir.mkdir(parents=True, exist_ok=True)
+
+                # Download each module as ZIP
+                for mod_name in module_names:
+                    try:
+                        dl_payload = dict(base_payload, action_ws="getFullModule", fileName=mod_name)
+                        mod_result = acai_web_request(domain, ssl_enabled, dl_payload, timeout=60)
+
+                        mod_data = mod_result.get("data")
+                        if mod_data and not isinstance(mod_data, dict):
+                            zip_bytes = base64.b64decode(mod_data)
+                            mod_dir = modules_dir / mod_name
+                            mod_dir.mkdir(parents=True, exist_ok=True)
+                            with zipfile.ZipFile(io.BytesIO(zip_bytes), 'r') as zf:
+                                zf.extractall(str(mod_dir))
+                            modules_count += 1
+                        elif isinstance(mod_data, dict) and mod_data.get("noExiste"):
+                            module_errors.append(mod_name)
+                        else:
+                            module_errors.append(mod_name)
+                    except Exception as e:
+                        module_errors.append("{}: {}".format(mod_name, e))
+
+                steps.append("{} modulos descargados".format(modules_count))
+                if module_errors:
+                    errors.append("Modulos con error: {}".format(", ".join(str(e) for e in module_errors)))
+            elif isinstance(result, dict) and result.get("error"):
+                errors.append("getFTPFiles: {}".format(result.get("message", result.get("error"))))
+        except Exception as e:
+            errors.append("Modulos: {}".format(e))
+
+        # Step 5: Uploads (optional, file by file — slow)
+        uploads_count = 0
+        if include_uploads:
+            try:
+                payload = dict(base_payload, action_ws="getFTPFiles", path="cms/uploads/")
+                result = acai_web_request(domain, ssl_enabled, payload, timeout=30)
+                if isinstance(result, list):
+                    uploads_dir = dest / "cms" / "uploads"
+                    uploads_dir.mkdir(parents=True, exist_ok=True)
+                    for entry in result:
+                        fname = entry.get("filename", "")
+                        if entry.get("isDir") or fname in (".", ".."):
+                            continue
+                        try:
+                            fp = dict(base_payload, action_ws="getFTPFiles", path="cms/uploads/" + fname)
+                            fr = acai_web_request(domain, ssl_enabled, fp, timeout=30)
+                            if isinstance(fr, dict) and fr.get("content"):
+                                filepath = uploads_dir / fname
+                                with open(str(filepath), "w", encoding="utf-8") as f:
+                                    f.write(fr["content"])
+                                uploads_count += 1
+                        except Exception:
+                            pass
+                    steps.append("{} uploads descargados".format(uploads_count))
+            except Exception as e:
+                errors.append("Uploads: {}".format(e))
+
+        self.send_json({
+            "success": True,
+            "project_dir": str(dest),
+            "modules_count": modules_count,
+            "hooks_count": hooks_count,
+            "uploads_count": uploads_count,
+            "steps": steps,
+            "errors": errors,
         })
 
 
