@@ -417,6 +417,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self.handle_get_settings()
         elif path == "/api/settings/passwords":
             self.handle_get_passwords()
+        elif path == "/api/watcher-logs":
+            self.handle_watcher_logs()
         else:
             self.send_error_json("Not found", 404)
 
@@ -834,6 +836,14 @@ class Handler(http.server.BaseHTTPRequestHandler):
             "mysql_password": keychain_get("mysql") or "",
         })
 
+    # ---- Watcher logs ----
+
+    def handle_watcher_logs(self):
+        """GET /api/watcher-logs — return watcher log buffer."""
+        with _watcher_log_lock:
+            entries = list(_watcher_log)
+        self.send_json({"logs": entries})
+
     # ---- Acai Code Auth ----
 
     def handle_acai_login(self, body):
@@ -1157,6 +1167,25 @@ class Handler(http.server.BaseHTTPRequestHandler):
 
 # ---- Module watcher ----
 
+_watcher_log = []  # [{ts, level, msg}, ...]
+_watcher_log_lock = threading.Lock()
+MAX_WATCHER_LOG = 200
+
+
+def _watcher_log_add(level, msg):
+    """Add entry to watcher log buffer. level: info|error|warn"""
+    with _watcher_log_lock:
+        _watcher_log.append({
+            "ts": time.time(),
+            "level": level,
+            "msg": msg,
+        })
+        if len(_watcher_log) > MAX_WATCHER_LOG:
+            _watcher_log[:] = _watcher_log[-MAX_WATCHER_LOG:]
+    print("[watcher] {}".format(msg))
+    sys.stdout.flush()
+
+
 def _scan_modules_mtimes(projects):
     """Scan modulos/ dirs of running projects and return {filepath: mtime}."""
     mtimes = {}
@@ -1177,10 +1206,18 @@ def _scan_modules_mtimes(projects):
 
 
 def _on_module_changed(changed_files):
-    """Called when module files change. TODO: implement sync/push logic."""
+    """Log detected module file changes. Sync logic will be added later."""
     for filepath in changed_files:
-        print("[watcher] Module changed: {}".format(filepath))
-    sys.stdout.flush()
+        # Extract module_name/filename from path
+        parts = Path(filepath).parts
+        try:
+            idx = parts.index("modulos")
+            if idx + 2 < len(parts):
+                _watcher_log_add("info", "Changed: {}/{}".format(parts[idx + 1], parts[idx + 2]))
+            else:
+                _watcher_log_add("info", "Changed: {}".format(Path(filepath).name))
+        except ValueError:
+            _watcher_log_add("info", "Changed: {}".format(Path(filepath).name))
 
 
 def start_module_watcher(interval=2):
