@@ -22,7 +22,18 @@ import urllib.request
 import zipfile
 from pathlib import Path
 
-SCRIPT_DIR = Path(__file__).resolve().parent
+def _get_script_dir():
+    """Return the directory containing resources. Handles py2app bundles."""
+    # py2app sets this env var to Contents/Resources inside the .app bundle
+    if hasattr(sys, '_MEIPASS'):
+        return Path(sys._MEIPASS)
+    frozen = getattr(sys, 'frozen', None)
+    if frozen:
+        # py2app: sys.executable is Contents/MacOS/Docker Web GUI
+        return Path(sys.executable).resolve().parent.parent / "Resources"
+    return Path(__file__).resolve().parent
+
+SCRIPT_DIR = _get_script_dir()
 DEFAULT_WEBS_DIR = Path.home() / "webs"
 DEFAULT_PORT = 9090
 ACAI_AUTH_URL = "https://ws.cocosolution.com/api/auth/"
@@ -353,6 +364,17 @@ def get_projects():
         else:
             proj_data["acai"] = False
 
+        # Read acai_domain from .acai file
+        if proj_data["acai"] and pdir:
+            try:
+                with open(str(Path(pdir) / ".acai"), "r", encoding="utf-8") as f:
+                    acai_data = json.load(f)
+                proj_data["acai_domain"] = acai_data.get("domain", "")
+            except Exception:
+                proj_data["acai_domain"] = ""
+        else:
+            proj_data["acai_domain"] = ""
+
     return list(projects.values())
 
 
@@ -374,11 +396,23 @@ class Handler(http.server.BaseHTTPRequestHandler):
         # Silenciar logs de acceso normales
         pass
 
+    def _send_cors_headers(self):
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+        self.send_header("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Acai-Token")
+
+    def do_OPTIONS(self):
+        self.send_response(204)
+        self._send_cors_headers()
+        self.send_header("Content-Length", "0")
+        self.end_headers()
+
     def send_json(self, data, status=200):
         body = json.dumps(data).encode()
         self.send_response(status)
         self.send_header("Content-Type", "application/json")
         self.send_header("Content-Length", str(len(body)))
+        self._send_cors_headers()
         self.end_headers()
         self.wfile.write(body)
 
@@ -419,6 +453,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self.handle_get_passwords()
         elif path == "/api/watcher-logs":
             self.handle_watcher_logs()
+        elif path.startswith("/local/"):
+            self.handle_local_proxy("GET")
         else:
             self.send_error_json("Not found", 404)
 
@@ -447,6 +483,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self.handle_acai_pull_web(body)
         elif path == "/api/settings":
             self.handle_save_settings(body)
+        elif path.startswith("/local/"):
+            self.handle_local_proxy("POST")
         else:
             self.send_error_json("Not found", 404)
 
@@ -843,6 +881,62 @@ class Handler(http.server.BaseHTTPRequestHandler):
         with _watcher_log_lock:
             entries = list(_watcher_log)
         self.send_json({"logs": entries})
+
+    # ---- Local Proxy ----
+
+    def handle_local_proxy(self, method):
+        """Proxy inverso: /local/{port}/path → http://localhost:{port}/path"""
+        parsed = urllib.parse.urlparse(self.path)
+        match = re.match(r'^/local/(\d+)(/.*)$', parsed.path)
+        if not match:
+            self.send_error_json("Expected /local/{port}/path", 400)
+            return
+        port = int(match.group(1))
+        target_path = match.group(2)
+        query = parsed.query
+        target_url = "http://localhost:{}{}".format(port, target_path)
+        if query:
+            target_url += "?" + query
+
+        # Read body for POST
+        body_data = None
+        if method == "POST":
+            length = int(self.headers.get("Content-Length", 0))
+            if length > 0:
+                body_data = self.rfile.read(length)
+
+        # Forward selective headers
+        fwd_headers = {}
+        for hdr in ("Content-Type", "Authorization", "X-Acai-Token"):
+            val = self.headers.get(hdr)
+            if val:
+                fwd_headers[hdr] = val
+
+        try:
+            req = urllib.request.Request(
+                target_url,
+                data=body_data,
+                headers=fwd_headers,
+                method=method,
+            )
+            with urllib.request.urlopen(req, timeout=30) as resp:
+                resp_body = resp.read()
+                resp_status = resp.status
+                resp_content_type = resp.getheader("Content-Type", "application/octet-stream")
+        except urllib.error.HTTPError as e:
+            resp_body = e.read()
+            resp_status = e.code
+            resp_content_type = e.headers.get("Content-Type", "application/octet-stream")
+        except Exception as e:
+            self.send_error_json("Proxy error: {}".format(e), 502)
+            return
+
+        self.send_response(resp_status)
+        self.send_header("Content-Type", resp_content_type)
+        self.send_header("Content-Length", str(len(resp_body)))
+        self._send_cors_headers()
+        self.end_headers()
+        self.wfile.write(resp_body)
 
     # ---- Acai Code Auth ----
 
@@ -1296,6 +1390,16 @@ def _run_reload(port_arg):
             sys.exit(0)
 
 
+def start_server(port=DEFAULT_PORT):
+    """Start the HTTP server and module watcher. Returns (server, port)."""
+    port = find_free_port(port)
+    server = http.server.HTTPServer(("127.0.0.1", port), Handler)
+    print("Docker Web GUI running at http://localhost:{}".format(port))
+    sys.stdout.flush()
+    start_module_watcher()
+    return server, port
+
+
 def main():
     # Parse args
     args = sys.argv[1:]
@@ -1310,13 +1414,9 @@ def main():
         _run_reload(port)
         return
 
-    port = find_free_port(port)
-
-    server = http.server.HTTPServer(("127.0.0.1", port), Handler)
-    print("Docker Web GUI running at http://localhost:{}".format(port))
+    server, port = start_server(port)
     if os.environ.get("_RELOAD_CHILD") == "1":
         print("Auto-reload active")
-    start_module_watcher()
     print("Press Ctrl+C to stop")
     sys.stdout.flush()
 
