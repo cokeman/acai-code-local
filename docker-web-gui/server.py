@@ -86,12 +86,22 @@ def get_webs_dir():
 
 
 def get_web_base_dir():
-    """Return the configured web-base directory, or the default relative to SCRIPT_DIR."""
+    """Return the configured web-base directory, or auto-detect next to docker-web.sh."""
     config = load_config()
     val = config.get("web_base_dir", "")
     if val:
-        return Path(os.path.expanduser(val)).resolve()
-    return SCRIPT_DIR.parent / "web-base"
+        p = Path(os.path.expanduser(val)).resolve()
+        if p.is_dir():
+            return p
+    # web-base always lives next to docker-web.sh on the filesystem
+    # Search the real filesystem locations (not inside .app bundle)
+    for candidate in [
+        SCRIPT_DIR.parent / "web-base",
+        Path.home() / "scripts" / "web-base",
+    ]:
+        if candidate.is_dir():
+            return candidate
+    return None
 
 
 def get_docker_web_sh():
@@ -100,7 +110,15 @@ def get_docker_web_sh():
     val = config.get("docker_web_sh", "")
     if val:
         return Path(os.path.expanduser(val)).resolve()
-    return SCRIPT_DIR.parent / "docker-web.sh"
+    # Check bundled copy (inside .app Resources)
+    bundled = SCRIPT_DIR / "docker-web.sh"
+    if bundled.is_file():
+        return bundled
+    # Check relative to source (dev mode)
+    default = SCRIPT_DIR.parent / "docker-web.sh"
+    if default.is_file():
+        return default
+    return None
 
 
 def keychain_get(account):
@@ -260,7 +278,7 @@ def find_free_port(start: int) -> int:
     return start
 
 
-def run_cmd(args, timeout=120):
+def run_cmd(args, timeout=120, env=None):
     """Ejecuta un comando y devuelve (returncode, stdout, stderr)."""
     try:
         proc = subprocess.run(
@@ -268,12 +286,22 @@ def run_cmd(args, timeout=120):
             capture_output=True,
             text=True,
             timeout=timeout,
+            env=env,
         )
         return proc.returncode, proc.stdout, proc.stderr
     except subprocess.TimeoutExpired:
         return 1, "", "Timeout after {}s".format(timeout)
     except Exception as e:
         return 1, "", str(e)
+
+
+def _docker_web_env():
+    """Build env dict for docker-web.sh with WEB_BASE_DIR set."""
+    env = dict(os.environ)
+    web_base = get_web_base_dir()
+    if web_base:
+        env["WEB_BASE_DIR"] = str(web_base)
+    return env
 
 
 def get_projects():
@@ -610,7 +638,11 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self.send_error_json("Invalid project directory")
             return
 
-        args = [str(get_docker_web_sh()), path]
+        docker_web_sh = get_docker_web_sh()
+        if not docker_web_sh:
+            self.send_error_json("docker-web.sh no configurado. Configúralo en Settings.", 500)
+            return
+        args = [str(docker_web_sh), path]
 
         # SQL local
         sql_file = body.get("sql_file", "")
@@ -653,7 +685,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
             args.append("--acai")
 
         # Ejecutar con timeout largo para builds
-        rc, out, err = run_cmd(args, timeout=300)
+        rc, out, err = run_cmd(args, timeout=300, env=_docker_web_env())
         # Limpiar códigos ANSI del output
         ansi_escape = re.compile(r'\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])')
         clean_out = ansi_escape.sub('', out + err)
@@ -675,7 +707,11 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self.send_error_json("Invalid project directory")
             return
 
-        rc, out, err = run_cmd([str(get_docker_web_sh()), path, "--stop"], timeout=60)
+        docker_web_sh = get_docker_web_sh()
+        if not docker_web_sh:
+            self.send_error_json("docker-web.sh no configurado. Configúralo en Settings.", 500)
+            return
+        rc, out, err = run_cmd([str(docker_web_sh), path, "--stop"], timeout=60, env=_docker_web_env())
         ansi_escape = re.compile(r'\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])')
         clean_out = ansi_escape.sub('', out + err)
 
@@ -695,7 +731,11 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self.send_error_json("Invalid project directory")
             return
 
-        rc, out, err = run_cmd([str(get_docker_web_sh()), path, "--destroy"], timeout=60)
+        docker_web_sh = get_docker_web_sh()
+        if not docker_web_sh:
+            self.send_error_json("docker-web.sh no configurado. Configúralo en Settings.", 500)
+            return
+        rc, out, err = run_cmd([str(docker_web_sh), path, "--destroy"], timeout=60, env=_docker_web_env())
         ansi_escape = re.compile(r'\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])')
         clean_out = ansi_escape.sub('', out + err)
 
@@ -1052,8 +1092,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
 
         # Check web-base exists
         web_base = get_web_base_dir()
-        if not web_base.exists():
-            self.send_error_json("web-base not found at {}".format(web_base))
+        if not web_base or not web_base.exists():
+            self.send_error_json("web-base no configurado. Configúralo en Settings.")
             return
 
         steps = []

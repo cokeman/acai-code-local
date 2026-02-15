@@ -133,7 +133,7 @@ fi
 PROJECT_NAME=$(basename "$PROJECT_DIR" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9_-]/_/g')
 DOCKER_DIR="$PROJECT_DIR/.docker"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-WEB_BASE_DIR="$SCRIPT_DIR/web-base"
+WEB_BASE_DIR="${WEB_BASE_DIR:-$SCRIPT_DIR/web-base}"
 
 # ---- Funcion: restaurar archivos parcheados ----
 

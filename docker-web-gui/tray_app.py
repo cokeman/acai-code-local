@@ -5,9 +5,14 @@ Uses rumps to create a tray icon that manages the local HTTP server.
 """
 
 import os
+import subprocess
 import sys
 import threading
 import webbrowser
+
+# Ensure common macOS paths are in PATH (py2app bundles have a minimal PATH)
+_extra_paths = "/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin"
+os.environ["PATH"] = _extra_paths + ":" + os.environ.get("PATH", "")
 
 import rumps
 

@@ -8,7 +8,7 @@ import os
 from setuptools import setup
 
 APP = ["tray_app.py"]
-DATA_FILES = [("", ["index.html", "icon_menu.png"])]
+DATA_FILES = [("", ["index.html", "icon_menu.png", "../docker-web.sh"])]
 OPTIONS = {
     "argv_emulation": False,
     "includes": ["server"],
