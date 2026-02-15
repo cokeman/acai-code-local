@@ -6,85 +6,217 @@
 <title>Docker Web Manager</title>
 <style>
 :root {
-  --bg: #1a1a2e;
-  --bg2: #16213e;
-  --bg3: #0f3460;
-  --surface: #1e2a4a;
-  --surface2: #253558;
-  --border: #2a3f6e;
-  --text: #e0e0e0;
-  --text2: #a0aec0;
-  --accent: #0db7ed;
-  --accent-hover: #0a9fd4;
-  --green: #48bb78;
-  --red: #fc8181;
-  --yellow: #f6e05e;
-  --orange: #ed8936;
-  --radius: 10px;
-  --shadow: 0 4px 20px rgba(0,0,0,0.3);
+  --bg: #0f1117;
+  --bg2: #161921;
+  --bg3: #1c1f2b;
+  --sidebar-bg: #12141c;
+  --surface: #1a1d28;
+  --surface2: #21252f;
+  --border: #2a2e3a;
+  --border-hover: #3a3f50;
+  --text: #e4e6eb;
+  --text2: #8b8fa3;
+  --text3: #5c6078;
+  --accent: #3b82f6;
+  --accent-hover: #2563eb;
+  --accent-dim: rgba(59,130,246,0.12);
+  --green: #22c55e;
+  --green-dim: rgba(34,197,94,0.12);
+  --red: #ef4444;
+  --red-dim: rgba(239,68,68,0.12);
+  --yellow: #eab308;
+  --orange: #f97316;
+  --radius: 8px;
+  --radius-lg: 12px;
+  --shadow: 0 4px 24px rgba(0,0,0,0.4);
+  --transition: 150ms ease;
 }
 * { margin: 0; padding: 0; box-sizing: border-box; }
 body {
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', system-ui, sans-serif;
   background: var(--bg);
   color: var(--text);
   min-height: 100vh;
+  display: flex;
 }
-header {
-  background: var(--bg2);
+
+/* ---- Sidebar ---- */
+.sidebar {
+  width: 260px;
+  min-width: 260px;
+  background: var(--sidebar-bg);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 50;
+}
+.sidebar-brand {
+  padding: 20px 20px 16px;
   border-bottom: 1px solid var(--border);
-  padding: 16px 24px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.sidebar-brand svg {
+  width: 24px;
+  height: 24px;
+  color: var(--accent);
+  flex-shrink: 0;
+}
+.sidebar-brand h1 {
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.3px;
+}
+.sidebar-brand .status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+.status-dot.ok { background: var(--green); box-shadow: 0 0 6px var(--green); }
+.status-dot.err { background: var(--red); }
+
+.sidebar-nav {
+  padding: 12px 10px;
+  flex: 1;
+}
+.nav-label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  color: var(--text3);
+  padding: 8px 12px 6px;
+  font-weight: 600;
+}
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 12px;
+  border-radius: 6px;
+  font-size: 14px;
+  color: var(--text2);
+  cursor: pointer;
+  transition: all var(--transition);
+  margin-bottom: 2px;
+  border: 1px solid transparent;
+}
+.nav-item:hover {
+  background: var(--surface);
+  color: var(--text);
+}
+.nav-item.active {
+  background: var(--accent-dim);
+  color: var(--accent);
+  border-color: rgba(59,130,246,0.2);
+}
+.nav-item svg {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+}
+.nav-item .nav-badge {
+  margin-left: auto;
+  font-size: 11px;
+  padding: 1px 7px;
+  border-radius: 10px;
+  background: var(--surface2);
+  color: var(--text2);
+  font-weight: 600;
+}
+
+/* ---- Acai sidebar section ---- */
+.sidebar-acai {
+  padding: 12px 10px;
+  border-top: 1px solid var(--border);
+}
+.acai-sidebar-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-radius: 6px;
+  font-size: 13px;
+  color: var(--text2);
+  cursor: pointer;
+  transition: all var(--transition);
+}
+.acai-sidebar-status:hover {
+  background: var(--surface);
+}
+.acai-sidebar-status .acai-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.acai-dot.connected { background: var(--green); box-shadow: 0 0 6px var(--green); }
+.acai-dot.disconnected { background: var(--text3); }
+.acai-sidebar-status .acai-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* ---- Main content ---- */
+.main-wrapper {
+  margin-left: 260px;
+  flex: 1;
+  min-height: 100vh;
+}
+.main-header {
+  padding: 20px 32px 16px;
+  border-bottom: 1px solid var(--border);
   display: flex;
   align-items: center;
   justify-content: space-between;
   position: sticky;
   top: 0;
-  z-index: 100;
+  background: var(--bg);
+  z-index: 40;
 }
-header h1 {
+.main-header h2 {
   font-size: 20px;
   font-weight: 600;
+  letter-spacing: -0.3px;
+}
+.main-header-actions {
   display: flex;
+  gap: 8px;
   align-items: center;
-  gap: 10px;
 }
-header h1 svg { width: 28px; height: 28px; }
-.status-dot {
-  width: 10px; height: 10px;
-  border-radius: 50%;
-  display: inline-block;
-  margin-left: 8px;
+.main-content {
+  padding: 24px 32px;
+  max-width: 1000px;
 }
-.status-dot.ok { background: var(--green); box-shadow: 0 0 8px var(--green); }
-.status-dot.err { background: var(--red); }
-.main { max-width: 1100px; margin: 0 auto; padding: 24px; }
 
-/* Panels */
-.panel {
+/* Pages */
+.page { display: none; }
+.page.active { display: block; }
+
+/* ---- Cards / Panels ---- */
+.card {
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: var(--radius);
-  margin-bottom: 24px;
+  border-radius: var(--radius-lg);
+  margin-bottom: 20px;
   overflow: hidden;
 }
-.panel-header {
-  background: var(--surface2);
+.card-header {
   padding: 14px 20px;
   font-weight: 600;
-  font-size: 15px;
+  font-size: 14px;
+  color: var(--text2);
   border-bottom: 1px solid var(--border);
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  cursor: pointer;
-  user-select: none;
+  gap: 8px;
 }
-.panel-header .toggle { transition: transform .2s; font-size: 12px; color: var(--text2); }
-.panel-header.collapsed .toggle { transform: rotate(-90deg); }
-.panel-body { padding: 20px; }
-.panel-body.collapsed { display: none; }
+.card-body { padding: 20px; }
 
-/* Forms */
+/* ---- Forms ---- */
 .form-row {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -92,25 +224,28 @@ header h1 svg { width: 28px; height: 28px; }
   margin-bottom: 16px;
 }
 .form-row.full { grid-template-columns: 1fr; }
-.form-group { display: flex; flex-direction: column; gap: 6px; }
+.form-row.triple { grid-template-columns: 1fr 1fr 1fr; }
+.form-group { display: flex; flex-direction: column; gap: 5px; }
 .form-group label {
-  font-size: 13px;
+  font-size: 12px;
   color: var(--text2);
   font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
 }
 input[type="text"], input[type="password"], input[type="number"] {
-  background: var(--bg);
+  background: var(--bg2);
   border: 1px solid var(--border);
   border-radius: 6px;
-  padding: 10px 12px;
+  padding: 9px 12px;
   color: var(--text);
-  font-size: 14px;
+  font-size: 13px;
   outline: none;
-  transition: border-color .2s;
+  transition: border-color var(--transition);
 }
 input:focus { border-color: var(--accent); }
-input::placeholder { color: #4a5568; }
-input:read-only { opacity: 0.6; cursor: default; }
+input::placeholder { color: var(--text3); }
+input:read-only { opacity: 0.5; cursor: default; }
 
 /* Path selector */
 .path-selector {
@@ -119,24 +254,23 @@ input:read-only { opacity: 0.6; cursor: default; }
   align-items: center;
 }
 .path-selector input { flex: 1; }
-.path-selector .btn { flex-shrink: 0; }
 
-/* Tabs */
+/* ---- Tabs ---- */
 .tabs {
   display: flex;
   gap: 0;
   margin-bottom: 16px;
-  border-bottom: 2px solid var(--border);
+  border-bottom: 1px solid var(--border);
 }
 .tab {
-  padding: 10px 20px;
+  padding: 9px 18px;
   cursor: pointer;
   font-size: 13px;
   font-weight: 500;
   color: var(--text2);
   border-bottom: 2px solid transparent;
-  margin-bottom: -2px;
-  transition: all .2s;
+  margin-bottom: -1px;
+  transition: all var(--transition);
 }
 .tab:hover { color: var(--text); }
 .tab.active {
@@ -146,21 +280,21 @@ input:read-only { opacity: 0.6; cursor: default; }
 .tab-content { display: none; }
 .tab-content.active { display: block; }
 
-/* Toggles */
+/* ---- Toggle switches ---- */
 .toggle-row {
   display: flex;
   align-items: center;
-  gap: 12px;
-  margin-bottom: 16px;
+  gap: 10px;
+  margin-bottom: 14px;
 }
 .toggle-switch {
-  width: 44px; height: 24px;
-  background: var(--bg);
+  width: 40px; height: 22px;
+  background: var(--bg2);
   border: 1px solid var(--border);
-  border-radius: 12px;
+  border-radius: 11px;
   position: relative;
   cursor: pointer;
-  transition: all .2s;
+  transition: all var(--transition);
 }
 .toggle-switch.on {
   background: var(--accent);
@@ -168,41 +302,43 @@ input:read-only { opacity: 0.6; cursor: default; }
 }
 .toggle-switch::after {
   content: '';
-  width: 18px; height: 18px;
+  width: 16px; height: 16px;
   background: white;
   border-radius: 50%;
   position: absolute;
   top: 2px; left: 2px;
-  transition: transform .2s;
+  transition: transform var(--transition);
 }
-.toggle-switch.on::after { transform: translateX(20px); }
-.toggle-label { font-size: 14px; }
+.toggle-switch.on::after { transform: translateX(18px); }
+.toggle-label { font-size: 13px; color: var(--text2); }
 
-/* Buttons */
+/* ---- Buttons ---- */
 .btn {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 10px 18px;
+  padding: 8px 16px;
   border: none;
   border-radius: 6px;
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 500;
   cursor: pointer;
-  transition: all .15s;
+  transition: all var(--transition);
   color: white;
 }
-.btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.btn:disabled { opacity: 0.4; cursor: not-allowed; }
 .btn-primary { background: var(--accent); }
 .btn-primary:hover:not(:disabled) { background: var(--accent-hover); }
-.btn-danger { background: #e53e3e; }
-.btn-danger:hover:not(:disabled) { background: #c53030; }
-.btn-warning { background: var(--orange); color: #1a1a2e; }
-.btn-warning:hover:not(:disabled) { background: #dd6b20; }
-.btn-secondary { background: var(--surface2); border: 1px solid var(--border); }
-.btn-secondary:hover:not(:disabled) { background: var(--border); }
+.btn-danger { background: var(--red); }
+.btn-danger:hover:not(:disabled) { background: #dc2626; }
+.btn-warning { background: var(--orange); color: var(--bg); }
+.btn-warning:hover:not(:disabled) { background: #ea580c; }
+.btn-secondary { background: var(--surface2); border: 1px solid var(--border); color: var(--text); }
+.btn-secondary:hover:not(:disabled) { border-color: var(--border-hover); background: var(--bg3); }
 .btn-sm { padding: 6px 12px; font-size: 12px; }
-.btn-icon { padding: 6px 10px; }
+.btn-xs { padding: 4px 10px; font-size: 11px; }
+.btn-ghost { background: transparent; color: var(--text2); }
+.btn-ghost:hover { color: var(--text); background: var(--surface); }
 
 .actions-row {
   display: flex;
@@ -211,29 +347,29 @@ input:read-only { opacity: 0.6; cursor: default; }
   margin-top: 16px;
 }
 
-/* Project cards */
+/* ---- Project cards ---- */
 .projects-grid {
   display: grid;
   grid-template-columns: 1fr;
-  gap: 14px;
+  gap: 12px;
 }
 .project-card {
-  background: var(--bg2);
+  background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 18px;
+  border-radius: var(--radius-lg);
+  padding: 16px 20px;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  transition: border-color .2s;
+  transition: border-color var(--transition);
 }
-.project-card:hover { border-color: var(--accent); }
+.project-card:hover { border-color: var(--border-hover); }
 .project-info { flex: 1; min-width: 0; }
 .project-name {
   font-weight: 600;
-  font-size: 16px;
-  margin-bottom: 6px;
+  font-size: 15px;
+  margin-bottom: 5px;
   display: flex;
   align-items: center;
   gap: 8px;
@@ -244,14 +380,15 @@ input:read-only { opacity: 0.6; cursor: default; }
   border-radius: 10px;
   font-weight: 600;
   text-transform: uppercase;
+  letter-spacing: 0.3px;
 }
-.badge-running { background: rgba(72,187,120,0.15); color: var(--green); }
-.badge-stopped { background: rgba(252,129,129,0.15); color: var(--red); }
+.badge-running { background: var(--green-dim); color: var(--green); }
+.badge-stopped { background: var(--red-dim); color: var(--red); }
 .project-details {
-  font-size: 13px;
+  font-size: 12px;
   color: var(--text2);
   display: flex;
-  gap: 20px;
+  gap: 16px;
   flex-wrap: wrap;
 }
 .project-details a {
@@ -261,30 +398,117 @@ input:read-only { opacity: 0.6; cursor: default; }
 .project-details a:hover { text-decoration: underline; }
 .project-actions {
   display: flex;
-  gap: 8px;
+  gap: 6px;
   flex-shrink: 0;
 }
 .empty-state {
   text-align: center;
-  padding: 40px;
-  color: var(--text2);
+  padding: 48px 24px;
+  color: var(--text3);
+  font-size: 14px;
 }
 
-/* Modal */
+/* ---- Acai Login / Domains ---- */
+.acai-login-form {
+  max-width: 380px;
+}
+.acai-domains-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 10px;
+}
+.domain-card {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px 16px;
+  cursor: pointer;
+  transition: all var(--transition);
+}
+.domain-card:hover { border-color: var(--border-hover); background: var(--surface2); }
+.domain-card.selected {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent);
+  background: var(--accent-dim);
+}
+.domain-card .domain-name {
+  font-weight: 600;
+  font-size: 14px;
+  margin-bottom: 3px;
+  word-break: break-all;
+}
+.domain-card .domain-meta {
+  font-size: 11px;
+  color: var(--text3);
+}
+.badge-acai {
+  font-size: 10px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: var(--accent-dim);
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.acai-logged-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 16px;
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  margin-bottom: 16px;
+}
+.acai-logged-bar .acai-user {
+  font-weight: 600;
+  font-size: 13px;
+  color: var(--accent);
+}
+
+.acai-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border-radius: var(--radius);
+  font-size: 13px;
+  margin-top: 12px;
+}
+.acai-status.success { background: var(--green-dim); border: 1px solid rgba(34,197,94,0.25); color: var(--green); }
+.acai-status.error { background: var(--red-dim); border: 1px solid rgba(239,68,68,0.25); color: var(--red); }
+.acai-status.loading { background: var(--accent-dim); border: 1px solid rgba(59,130,246,0.25); color: var(--accent); }
+
+/* ---- Section divider ---- */
+.section-divider {
+  border-top: 1px solid var(--border);
+  margin: 20px 0;
+  padding-top: 20px;
+}
+.section-title {
+  font-size: 14px;
+  font-weight: 600;
+  margin-bottom: 14px;
+  color: var(--text);
+}
+
+/* ---- Modal ---- */
 .modal-overlay {
   display: none;
   position: fixed;
   inset: 0;
-  background: rgba(0,0,0,0.6);
+  background: rgba(0,0,0,0.65);
   z-index: 200;
   align-items: center;
   justify-content: center;
+  backdrop-filter: blur(4px);
 }
 .modal-overlay.open { display: flex; }
 .modal {
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: var(--radius);
+  border-radius: var(--radius-lg);
   width: 90%;
   max-width: 800px;
   max-height: 80vh;
@@ -293,33 +517,38 @@ input:read-only { opacity: 0.6; cursor: default; }
   box-shadow: var(--shadow);
 }
 .modal-header {
-  padding: 16px 20px;
+  padding: 14px 20px;
   border-bottom: 1px solid var(--border);
   display: flex;
   align-items: center;
   justify-content: space-between;
   font-weight: 600;
+  font-size: 14px;
 }
 .modal-close {
   background: none;
   border: none;
-  color: var(--text2);
-  font-size: 20px;
+  color: var(--text3);
+  font-size: 18px;
   cursor: pointer;
   padding: 4px 8px;
+  border-radius: 4px;
+  transition: all var(--transition);
 }
-.modal-close:hover { color: var(--text); }
+.modal-close:hover { color: var(--text); background: var(--surface2); }
 .modal-body {
   padding: 20px;
   overflow-y: auto;
   flex: 1;
 }
+
+/* Log output */
 .log-output {
-  background: #0d1117;
+  background: #0a0c10;
   border: 1px solid var(--border);
   border-radius: 6px;
-  padding: 16px;
-  font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace;
+  padding: 14px;
+  font-family: 'SF Mono', 'JetBrains Mono', 'Fira Code', monospace;
   font-size: 12px;
   line-height: 1.6;
   white-space: pre-wrap;
@@ -329,142 +558,79 @@ input:read-only { opacity: 0.6; cursor: default; }
   color: #c9d1d9;
 }
 
-/* File browser modal */
+/* File browser */
 .browser-list {
   list-style: none;
   max-height: 400px;
   overflow-y: auto;
 }
 .browser-item {
-  padding: 10px 14px;
+  padding: 9px 12px;
   display: flex;
   align-items: center;
   gap: 10px;
   cursor: pointer;
   border-radius: 6px;
-  font-size: 14px;
-  transition: background .1s;
+  font-size: 13px;
+  transition: background var(--transition);
 }
 .browser-item:hover { background: var(--surface2); }
-.browser-item.selected { background: var(--bg3); border: 1px solid var(--accent); }
-.browser-icon { font-size: 16px; width: 24px; text-align: center; opacity: 0.7; }
+.browser-item.selected { background: var(--accent-dim); border: 1px solid rgba(59,130,246,0.3); }
+.browser-icon { font-size: 15px; width: 22px; text-align: center; opacity: 0.6; }
 .browser-path {
-  padding: 10px 14px;
-  background: var(--bg);
+  padding: 9px 12px;
+  background: var(--bg2);
   border-radius: 6px;
-  font-size: 13px;
+  font-size: 12px;
   color: var(--text2);
   margin-bottom: 12px;
-  display: flex;
-  align-items: center;
-  gap: 8px;
   word-break: break-all;
 }
-.browser-size { margin-left: auto; font-size: 12px; color: var(--text2); }
+.browser-size { margin-left: auto; font-size: 11px; color: var(--text3); }
 .browser-actions {
   display: flex;
-  gap: 10px;
+  gap: 8px;
   justify-content: flex-end;
-  margin-top: 16px;
-  padding-top: 16px;
+  margin-top: 14px;
+  padding-top: 14px;
   border-top: 1px solid var(--border);
 }
 
 /* Output panel */
 .output-panel {
   display: none;
-  margin-top: 16px;
+  margin-top: 14px;
 }
 .output-panel.visible { display: block; }
 
-/* Loading spinner */
+/* Spinner */
 .spinner {
   display: inline-block;
-  width: 16px; height: 16px;
+  width: 14px; height: 14px;
   border: 2px solid var(--border);
   border-top-color: var(--accent);
   border-radius: 50%;
-  animation: spin 0.8s linear infinite;
+  animation: spin 0.7s linear infinite;
 }
 @keyframes spin { to { transform: rotate(360deg); } }
 
 /* Confirm dialog */
-.confirm-text { font-size: 15px; margin-bottom: 20px; line-height: 1.5; }
-
-/* Acai Code */
-.acai-login-form {
-  max-width: 400px;
-}
-.acai-logged-bar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 10px 16px;
-  background: var(--bg2);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  margin-bottom: 16px;
-}
-.acai-logged-bar .acai-user {
-  font-weight: 600;
-  font-size: 14px;
-  color: var(--accent);
-}
-.acai-domains-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-  gap: 12px;
-}
-.domain-card {
-  background: var(--bg2);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 16px;
-  cursor: pointer;
-  transition: all .15s;
-}
-.domain-card:hover { border-color: var(--accent); background: var(--surface2); }
-.domain-card.selected {
-  border-color: var(--accent);
-  box-shadow: 0 0 0 1px var(--accent);
-  background: rgba(13,183,237,0.08);
-}
-.domain-card .domain-name {
-  font-weight: 600;
-  font-size: 15px;
-  margin-bottom: 4px;
-  word-break: break-all;
-}
-.domain-card .domain-meta {
-  font-size: 12px;
-  color: var(--text2);
-  display: flex;
-  gap: 12px;
-}
-.badge-acai {
-  font-size: 10px;
-  padding: 2px 6px;
-  border-radius: 4px;
-  background: rgba(13,183,237,0.15);
-  color: var(--accent);
-  font-weight: 600;
-}
-.acai-status {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 12px 16px;
-  border-radius: 8px;
-  font-size: 14px;
-  margin-top: 16px;
-}
-.acai-status.success { background: rgba(72,187,120,0.1); border: 1px solid rgba(72,187,120,0.3); color: var(--green); }
-.acai-status.error { background: rgba(252,129,129,0.1); border: 1px solid rgba(252,129,129,0.3); color: var(--red); }
-.acai-status.loading { background: rgba(13,183,237,0.1); border: 1px solid rgba(13,183,237,0.3); color: var(--accent); }
+.confirm-text { font-size: 14px; margin-bottom: 20px; line-height: 1.5; }
 
 /* Responsive */
+@media (max-width: 900px) {
+  .sidebar { width: 220px; min-width: 220px; }
+  .main-wrapper { margin-left: 220px; }
+  .main-content { padding: 20px; }
+}
 @media (max-width: 700px) {
+  .sidebar {
+    position: fixed;
+    transform: translateX(-100%);
+    transition: transform 0.25s ease;
+  }
+  .sidebar.open { transform: translateX(0); }
+  .main-wrapper { margin-left: 0; }
   .form-row { grid-template-columns: 1fr; }
   .project-card { flex-direction: column; align-items: stretch; }
   .project-actions { justify-content: flex-end; }
@@ -473,194 +639,229 @@ input:read-only { opacity: 0.6; cursor: default; }
 </head>
 <body>
 
-<header>
-  <h1>
+<!-- ---- Sidebar ---- -->
+<aside class="sidebar">
+  <div class="sidebar-brand">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
-    Docker Web Manager
+    <h1>Docker Web</h1>
     <span class="status-dot ok" id="statusDot" title="Servidor conectado"></span>
-  </h1>
-  <button class="btn btn-secondary btn-sm" onclick="refreshProjects()">Refrescar</button>
-</header>
-
-<div class="main">
-
-  <!-- Acai Code -->
-  <div class="panel">
-    <div class="panel-header" onclick="togglePanel(this)">
-      Acai Code
-      <span class="toggle">&#9660;</span>
-    </div>
-    <div class="panel-body" id="acaiBody">
-
-      <!-- Login form (visible when not logged in) -->
-      <div id="acaiLoginSection">
-        <div class="acai-login-form">
-          <div class="form-row full">
-            <div class="form-group">
-              <label>Usuario</label>
-              <input type="text" id="acaiUsername" placeholder="usuario@email.com">
-            </div>
-          </div>
-          <div class="form-row full">
-            <div class="form-group">
-              <label>Password</label>
-              <input type="password" id="acaiPassword" placeholder="password" onkeydown="if(event.key==='Enter')acaiLogin()">
-            </div>
-          </div>
-          <div class="actions-row" style="margin-top:12px">
-            <button class="btn btn-primary" id="acaiLoginBtn" onclick="acaiLogin()">Conectar</button>
-          </div>
-        </div>
-        <div id="acaiLoginStatus"></div>
-      </div>
-
-      <!-- Domains (visible after login) -->
-      <div id="acaiDomainsSection" style="display:none">
-        <div class="acai-logged-bar">
-          <div>
-            Conectado como <span class="acai-user" id="acaiUserLabel"></span>
-          </div>
-          <button class="btn btn-secondary btn-sm" onclick="acaiLogout()">Desconectar</button>
-        </div>
-        <div style="margin-bottom:12px; font-size:14px; color:var(--text2);">Selecciona una web para conectarte:</div>
-        <div class="acai-domains-grid" id="acaiDomainsList"></div>
-        <div id="acaiDomainStatus"></div>
-
-        <!-- Pull Web section (visible after domain selection with token) -->
-        <div id="acaiPullSection" style="display:none">
-          <div style="border-top: 1px solid var(--border); margin-top: 16px; padding-top: 16px;">
-            <div style="font-size: 15px; font-weight: 600; margin-bottom: 12px;">Traer Web</div>
-            <div class="form-row full">
-              <div class="form-group">
-                <label>Directorio destino</label>
-                <input type="text" id="pullDestDir" placeholder="~/webs/dominio.com">
-              </div>
-            </div>
-            <div class="toggle-row">
-              <div class="toggle-switch" id="toggleUploads" onclick="this.classList.toggle('on')"></div>
-              <span class="toggle-label">Incluir uploads (imagenes, archivos subidos)</span>
-            </div>
-            <div class="actions-row">
-              <button class="btn btn-primary" id="pullWebBtn" onclick="pullWeb()">Traer Web</button>
-            </div>
-            <div class="output-panel" id="pullWebOutput">
-              <div class="log-output" id="pullWebLog"></div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-    </div>
   </div>
 
-  <!-- Active Projects -->
-  <div class="panel">
-    <div class="panel-header" onclick="togglePanel(this)">
-      Proyectos Activos
-      <span class="toggle">&#9660;</span>
+  <nav class="sidebar-nav">
+    <div class="nav-label">Menu</div>
+    <div class="nav-item active" onclick="showPage('projects', this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+      Proyectos
+      <span class="nav-badge" id="projectsCount">0</span>
     </div>
-    <div class="panel-body" id="projectsBody">
+    <div class="nav-item" onclick="showPage('nueva-web', this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
+      Nueva Web
+    </div>
+  </nav>
+
+  <div class="sidebar-acai">
+    <div class="nav-label">Acai Code</div>
+    <div class="acai-sidebar-status" onclick="showPage('nueva-web', document.querySelectorAll('.nav-item')[1]); document.getElementById('acaiUsername').focus();" id="acaiSidebarBtn">
+      <span class="acai-dot disconnected" id="acaiDot"></span>
+      <span class="acai-label" id="acaiSidebarLabel">Sin conectar</span>
+    </div>
+  </div>
+</aside>
+
+<!-- ---- Main ---- -->
+<div class="main-wrapper">
+
+  <!-- ====== PAGE: Proyectos ====== -->
+  <div class="page active" id="page-projects">
+    <div class="main-header">
+      <h2>Proyectos</h2>
+      <div class="main-header-actions">
+        <button class="btn btn-secondary btn-sm" onclick="refreshProjects()">Refrescar</button>
+      </div>
+    </div>
+    <div class="main-content">
       <div class="projects-grid" id="projectsList">
         <div class="empty-state">Cargando...</div>
       </div>
     </div>
   </div>
 
-  <!-- New Project -->
-  <div class="panel">
-    <div class="panel-header" onclick="togglePanel(this)">
-      Nuevo Proyecto
-      <span class="toggle">&#9660;</span>
+  <!-- ====== PAGE: Nueva Web ====== -->
+  <div class="page" id="page-nueva-web">
+    <div class="main-header">
+      <h2>Nueva Web</h2>
     </div>
-    <div class="panel-body" id="launchBody">
-      <!-- Project path -->
-      <div class="form-row full">
-        <div class="form-group">
-          <label>Ruta del proyecto</label>
-          <div class="path-selector">
-            <input type="text" id="projectDir" placeholder="/ruta/a/mi-proyecto" readonly>
-            <button class="btn btn-secondary btn-sm" onclick="openBrowser('project')">Explorar...</button>
-          </div>
+    <div class="main-content">
+
+      <!-- Acai Code Connection -->
+      <div class="card">
+        <div class="card-header">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg>
+          Acai Code
         </div>
-      </div>
+        <div class="card-body" id="acaiBody">
 
-      <!-- SQL Source Tabs -->
-      <div class="tabs">
-        <div class="tab active" onclick="switchTab('local', this)">Archivo SQL local</div>
-        <div class="tab" onclick="switchTab('remote', this)">Servidor remoto</div>
-        <div class="tab" onclick="switchTab('none', this)">Sin SQL</div>
-      </div>
+          <!-- Login form -->
+          <div id="acaiLoginSection">
+            <div class="acai-login-form">
+              <div class="form-row full">
+                <div class="form-group">
+                  <label>Usuario</label>
+                  <input type="text" id="acaiUsername" placeholder="usuario@email.com">
+                </div>
+              </div>
+              <div class="form-row full">
+                <div class="form-group">
+                  <label>Password</label>
+                  <input type="password" id="acaiPassword" placeholder="password" onkeydown="if(event.key==='Enter')acaiLogin()">
+                </div>
+              </div>
+              <div class="actions-row" style="margin-top:8px">
+                <button class="btn btn-primary" id="acaiLoginBtn" onclick="acaiLogin()">Conectar</button>
+              </div>
+            </div>
+            <div id="acaiLoginStatus"></div>
+          </div>
 
-      <div class="tab-content active" id="tab-local">
-        <div class="form-row full">
-          <div class="form-group">
-            <label>Archivo .sql</label>
-            <div class="path-selector">
-              <input type="text" id="sqlFile" placeholder="Seleccionar archivo .sql" readonly>
-              <button class="btn btn-secondary btn-sm" onclick="openBrowser('sql')">Explorar...</button>
+          <!-- Domains (after login) -->
+          <div id="acaiDomainsSection" style="display:none">
+            <div class="acai-logged-bar">
+              <div>
+                Conectado como <span class="acai-user" id="acaiUserLabel"></span>
+              </div>
+              <button class="btn btn-ghost btn-sm" onclick="acaiLogout()">Desconectar</button>
+            </div>
+            <div style="margin-bottom:10px; font-size:13px; color:var(--text2);">Selecciona una web:</div>
+            <div class="acai-domains-grid" id="acaiDomainsList"></div>
+            <div id="acaiDomainStatus"></div>
+
+            <!-- Pull Web section -->
+            <div id="acaiPullSection" style="display:none">
+              <div class="section-divider">
+                <div class="section-title">Traer Web</div>
+                <div class="form-row full">
+                  <div class="form-group">
+                    <label>Directorio destino</label>
+                    <input type="text" id="pullDestDir" placeholder="~/webs/dominio.com">
+                  </div>
+                </div>
+                <div class="toggle-row">
+                  <div class="toggle-switch" id="toggleUploads" onclick="this.classList.toggle('on')"></div>
+                  <span class="toggle-label">Incluir uploads (imagenes, archivos subidos)</span>
+                </div>
+                <div class="actions-row" style="margin-top:8px">
+                  <button class="btn btn-primary" id="pullWebBtn" onclick="pullWeb()">Traer Web</button>
+                </div>
+                <div class="output-panel" id="pullWebOutput">
+                  <div class="log-output" id="pullWebLog"></div>
+                </div>
+              </div>
             </div>
           </div>
+
         </div>
       </div>
 
-      <div class="tab-content" id="tab-remote">
-        <div class="form-row">
-          <div class="form-group">
-            <label>Host</label>
-            <input type="text" id="remoteHost" placeholder="134.209.184.1">
+      <!-- Launch Form -->
+      <div class="card">
+        <div class="card-header">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+          Levantar Proyecto
+        </div>
+        <div class="card-body" id="launchBody">
+          <!-- Project path -->
+          <div class="form-row full">
+            <div class="form-group">
+              <label>Ruta del proyecto</label>
+              <div class="path-selector">
+                <input type="text" id="projectDir" placeholder="/ruta/a/mi-proyecto" readonly>
+                <button class="btn btn-secondary btn-sm" onclick="openBrowser('project')">Explorar</button>
+              </div>
+            </div>
           </div>
-          <div class="form-group">
-            <label>Puerto</label>
-            <input type="number" id="remotePort" placeholder="3306" value="3306">
+
+          <!-- SQL Source Tabs -->
+          <div class="tabs">
+            <div class="tab active" onclick="switchTab('local', this)">SQL local</div>
+            <div class="tab" onclick="switchTab('remote', this)">Servidor remoto</div>
+            <div class="tab" onclick="switchTab('none', this)">Sin SQL</div>
+          </div>
+
+          <div class="tab-content active" id="tab-local">
+            <div class="form-row full">
+              <div class="form-group">
+                <label>Archivo .sql</label>
+                <div class="path-selector">
+                  <input type="text" id="sqlFile" placeholder="Seleccionar archivo .sql" readonly>
+                  <button class="btn btn-secondary btn-sm" onclick="openBrowser('sql')">Explorar</button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="tab-content" id="tab-remote">
+            <div class="form-row">
+              <div class="form-group">
+                <label>Host</label>
+                <input type="text" id="remoteHost" placeholder="134.209.184.1">
+              </div>
+              <div class="form-group">
+                <label>Puerto</label>
+                <input type="number" id="remotePort" placeholder="3306" value="3306">
+              </div>
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label>Usuario</label>
+                <input type="text" id="remoteUser" placeholder="usuario">
+              </div>
+              <div class="form-group">
+                <label>Password</label>
+                <input type="password" id="remotePass" placeholder="password">
+              </div>
+            </div>
+            <div class="form-row full">
+              <div class="form-group">
+                <label>Base de datos</label>
+                <input type="text" id="remoteDbname" placeholder="nombre_bd">
+              </div>
+            </div>
+          </div>
+
+          <div class="tab-content" id="tab-none">
+            <p style="color: var(--text3); font-size: 13px; padding: 8px 0;">
+              Se levantara el entorno sin importar ninguna base de datos.
+            </p>
+          </div>
+
+          <!-- Options -->
+          <div class="toggle-row">
+            <div class="toggle-switch" id="toggleRedis" onclick="this.classList.toggle('on')"></div>
+            <span class="toggle-label">Redis</span>
+          </div>
+          <div class="toggle-row">
+            <div class="toggle-switch" id="toggleRebuild" onclick="this.classList.toggle('on')"></div>
+            <span class="toggle-label">Forzar rebuild</span>
+          </div>
+
+          <!-- Launch button -->
+          <div class="actions-row">
+            <button class="btn btn-primary" id="launchBtn" onclick="launchProject()">
+              Levantar proyecto
+            </button>
+          </div>
+
+          <!-- Output -->
+          <div class="output-panel" id="launchOutput">
+            <div class="log-output" id="launchLog"></div>
           </div>
         </div>
-        <div class="form-row">
-          <div class="form-group">
-            <label>Usuario</label>
-            <input type="text" id="remoteUser" placeholder="usuario">
-          </div>
-          <div class="form-group">
-            <label>Password</label>
-            <input type="password" id="remotePass" placeholder="password">
-          </div>
-        </div>
-        <div class="form-row full">
-          <div class="form-group">
-            <label>Base de datos</label>
-            <input type="text" id="remoteDbname" placeholder="nombre_bd">
-          </div>
-        </div>
       </div>
 
-      <div class="tab-content" id="tab-none">
-        <p style="color: var(--text2); font-size: 14px; padding: 10px 0;">
-          Se levantara el entorno sin importar ninguna base de datos.
-        </p>
-      </div>
-
-      <!-- Options -->
-      <div class="toggle-row">
-        <div class="toggle-switch" id="toggleRedis" onclick="this.classList.toggle('on')"></div>
-        <span class="toggle-label">Redis</span>
-      </div>
-      <div class="toggle-row">
-        <div class="toggle-switch" id="toggleRebuild" onclick="this.classList.toggle('on')"></div>
-        <span class="toggle-label">Forzar rebuild de imagen</span>
-      </div>
-
-      <!-- Launch button -->
-      <div class="actions-row">
-        <button class="btn btn-primary" id="launchBtn" onclick="launchProject()">
-          Levantar proyecto
-        </button>
-      </div>
-
-      <!-- Output -->
-      <div class="output-panel" id="launchOutput">
-        <div class="log-output" id="launchLog"></div>
-      </div>
     </div>
   </div>
+
 </div>
 
 <!-- Logs Modal -->
@@ -703,7 +904,7 @@ input:read-only { opacity: 0.6; cursor: default; }
     </div>
     <div class="modal-body">
       <div class="confirm-text" id="confirmText"></div>
-      <div style="display: flex; gap: 10px; justify-content: flex-end;">
+      <div style="display: flex; gap: 8px; justify-content: flex-end;">
         <button class="btn btn-secondary" onclick="closeModal('confirmModal')">Cancelar</button>
         <button class="btn btn-danger" id="confirmBtn" onclick="">Confirmar</button>
       </div>
@@ -711,7 +912,7 @@ input:read-only { opacity: 0.6; cursor: default; }
   </div>
 </div>
 
-<!-- Output Modal (for stop/destroy feedback) -->
+<!-- Output Modal -->
 <div class="modal-overlay" id="outputModal">
   <div class="modal" style="max-width: 650px;">
     <div class="modal-header">
@@ -726,21 +927,28 @@ input:read-only { opacity: 0.6; cursor: default; }
 
 <script>
 // ---- State ----
-let browserMode = 'project'; // 'project' or 'sql'
+let browserMode = 'project';
 let browserSelected = null;
 let activeTab = 'local';
 
-// Acai Code state
 let acaiSession = {
   username: '',
   hash: '',
   domains: [],
-  // After domain selection:
   token: '',
   tokenHash: '',
-  domain: null,   // { num, domain }
+  domain: null,
   user: null,
 };
+
+// ---- Page navigation ----
+function showPage(pageId, navEl) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  const page = document.getElementById('page-' + pageId);
+  if (page) page.classList.add('active');
+  if (navEl) navEl.classList.add('active');
+}
 
 // ---- API helpers ----
 async function api(path, opts = {}) {
@@ -756,7 +964,9 @@ async function refreshProjects() {
   const el = document.getElementById('projectsList');
   try {
     const data = await api('/api/projects');
-    if (!data.projects || data.projects.length === 0) {
+    const count = (data.projects || []).length;
+    document.getElementById('projectsCount').textContent = count;
+    if (!data.projects || count === 0) {
       el.innerHTML = '<div class="empty-state">No hay proyectos activos</div>';
       return;
     }
@@ -768,7 +978,6 @@ async function refreshProjects() {
 }
 
 function renderProjectCard(p) {
-  const containers = p.containers.map(c => c.name).join(', ');
   const statusBadge = p.status === 'running'
     ? '<span class="badge badge-running">Running</span>'
     : '<span class="badge badge-stopped">Stopped</span>';
@@ -807,7 +1016,6 @@ async function showLogs(container) {
 
   const data = await api(`/api/logs/${encodeURIComponent(container)}`);
   document.getElementById('logsContent').textContent = data.logs || 'Sin logs';
-  // Auto-scroll to bottom
   const logEl = document.getElementById('logsContent');
   logEl.scrollTop = logEl.scrollHeight;
 }
@@ -859,10 +1067,7 @@ function openBrowser(mode) {
   openModal('browserModal');
 }
 
-function homeDir() {
-  // Intentar detectar home dir
-  return '/Users';
-}
+function homeDir() { return '/Users'; }
 
 function dirname(p) {
   return p.substring(0, p.lastIndexOf('/')) || '/';
@@ -884,7 +1089,6 @@ async function loadBrowser(path) {
   const list = document.getElementById('browserList');
   let html = '';
 
-  // Parent dir
   if (data.parent) {
     html += `<li class="browser-item" ondblclick="loadBrowser('${escapeAttr(data.parent)}')" onclick="loadBrowser('${escapeAttr(data.parent)}')">
       <span class="browser-icon">&#128193;</span> ..
@@ -906,12 +1110,10 @@ async function loadBrowser(path) {
   }
 
   if (data.entries.length === 0 && !data.parent) {
-    html = '<li class="browser-item" style="color: var(--text2);">Directorio vacio</li>';
+    html = '<li class="browser-item" style="color: var(--text3);">Directorio vacio</li>';
   }
 
   list.innerHTML = html;
-
-  // Update select button text
   updateSelectButton();
 }
 
@@ -933,7 +1135,6 @@ function updateSelectButton() {
 
 function selectBrowserItem() {
   if (!browserSelected) return;
-
   if (browserMode === 'project') {
     document.getElementById('projectDir').value = browserSelected;
   } else {
@@ -979,7 +1180,6 @@ async function launchProject() {
   if (document.getElementById('toggleRedis').classList.contains('on')) body.redis = true;
   if (document.getElementById('toggleRebuild').classList.contains('on')) body.rebuild = true;
 
-  // Show output
   const outputPanel = document.getElementById('launchOutput');
   const logEl = document.getElementById('launchLog');
   outputPanel.classList.add('visible');
@@ -1009,12 +1209,6 @@ async function launchProject() {
   btn.innerHTML = 'Levantar proyecto';
 }
 
-// ---- Panel toggle ----
-function togglePanel(header) {
-  header.classList.toggle('collapsed');
-  header.nextElementSibling.classList.toggle('collapsed');
-}
-
 // ---- Modal helpers ----
 function openModal(id) {
   document.getElementById(id).classList.add('open');
@@ -1023,14 +1217,12 @@ function closeModal(id) {
   document.getElementById(id).classList.remove('open');
 }
 
-// Close modal on overlay click
 document.querySelectorAll('.modal-overlay').forEach(overlay => {
   overlay.addEventListener('click', (e) => {
     if (e.target === overlay) overlay.classList.remove('open');
   });
 });
 
-// Close modal on Escape
 document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape') {
     document.querySelectorAll('.modal-overlay.open').forEach(m => m.classList.remove('open'));
@@ -1048,6 +1240,21 @@ function escapeAttr(s) {
 }
 
 // ---- Acai Code ----
+function updateAcaiSidebar() {
+  const dot = document.getElementById('acaiDot');
+  const label = document.getElementById('acaiSidebarLabel');
+  if (acaiSession.token && acaiSession.domain) {
+    dot.className = 'acai-dot connected';
+    label.textContent = acaiSession.domain.domain || 'Conectado';
+  } else if (acaiSession.hash) {
+    dot.className = 'acai-dot connected';
+    label.textContent = acaiSession.username;
+  } else {
+    dot.className = 'acai-dot disconnected';
+    label.textContent = 'Sin conectar';
+  }
+}
+
 async function acaiLogin() {
   const username = document.getElementById('acaiUsername').value.trim();
   const password = document.getElementById('acaiPassword').value;
@@ -1074,17 +1281,16 @@ async function acaiLogin() {
       return;
     }
 
-    // Store session
     acaiSession.username = username;
     acaiSession.hash = data.hash;
     acaiSession.domains = data.domains || [];
 
-    // Switch to domains view
     document.getElementById('acaiLoginSection').style.display = 'none';
     document.getElementById('acaiDomainsSection').style.display = 'block';
     document.getElementById('acaiUserLabel').textContent = username;
 
     renderDomains();
+    updateAcaiSidebar();
   } catch (e) {
     showAcaiStatus('acaiLoginStatus', 'error', 'Error de conexion: ' + e.message);
   }
@@ -1117,7 +1323,6 @@ function renderDomains() {
 async function acaiSelectDomain(domainNum, domainName) {
   showAcaiStatus('acaiDomainStatus', 'loading', 'Conectando a ' + domainName + '...');
 
-  // Highlight selected card immediately
   document.querySelectorAll('.domain-card').forEach(c => c.classList.remove('selected'));
   event.currentTarget.classList.add('selected');
 
@@ -1136,7 +1341,6 @@ async function acaiSelectDomain(domainNum, domainName) {
       return;
     }
 
-    // Store token and domain info
     acaiSession.token = data.token;
     acaiSession.tokenHash = data.tokenHash;
     acaiSession.domain = data.domain;
@@ -1144,14 +1348,13 @@ async function acaiSelectDomain(domainNum, domainName) {
 
     const userInfo = data.user && data.user.username ? ` (${data.user.username})` : '';
     showAcaiStatus('acaiDomainStatus', 'success',
-      'Conectado a ' + (data.domain.domain || domainName) + userInfo + ' — Token obtenido');
+      'Conectado a ' + (data.domain.domain || domainName) + userInfo);
 
     renderDomains();
+    updateAcaiSidebar();
 
-    // Show pull section with default dest dir
     document.getElementById('acaiPullSection').style.display = 'block';
     document.getElementById('pullDestDir').value = '~/webs/' + (data.domain.domain || domainName);
-    // Reset pull output
     document.getElementById('pullWebOutput').classList.remove('visible');
     document.getElementById('pullWebLog').textContent = '';
   } catch (e) {
@@ -1167,6 +1370,7 @@ function acaiLogout() {
   document.getElementById('acaiPassword').value = '';
   document.getElementById('acaiLoginStatus').innerHTML = '';
   document.getElementById('acaiDomainStatus').innerHTML = '';
+  updateAcaiSidebar();
 }
 
 async function pullWeb() {
@@ -1213,10 +1417,10 @@ async function pullWeb() {
       if (data.uploads_count) output += 'Uploads: ' + data.uploads_count + '\n';
       logEl.textContent = output;
 
-      // Auto-fill Nuevo Proyecto form
+      // Auto-fill launch form
       document.getElementById('projectDir').value = data.project_dir;
 
-      // Enable Redis (all Acai webs use it)
+      // Enable Redis
       const redisToggle = document.getElementById('toggleRedis');
       if (!redisToggle.classList.contains('on')) redisToggle.classList.add('on');
 
@@ -1226,7 +1430,6 @@ async function pullWeb() {
         document.getElementById('remoteUser').value = acaiSession.domain.mysql_user || '';
         document.getElementById('remotePass').value = acaiSession.domain.mysql_pass || '';
         document.getElementById('remoteDbname').value = acaiSession.domain.mysql_db || '';
-        // Switch to remote tab
         const remoteTab = document.querySelectorAll('.tab')[1];
         if (remoteTab) switchTab('remote', remoteTab);
       }
@@ -1256,7 +1459,6 @@ function showAcaiStatus(elementId, type, message) {
 
 // ---- Init ----
 refreshProjects();
-// Auto-refresh every 15s
 setInterval(refreshProjects, 15000);
 </script>
 </body>
