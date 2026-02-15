@@ -1,3 +1,5 @@
 __pycache__/
 *.pyc
 docker-web-gui/.server.pid
+docker-web-gui/build/
+docker-web-gui/dist/
