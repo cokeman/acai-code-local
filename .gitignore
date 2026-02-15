@@ -1,0 +1,3 @@
+__pycache__/
+*.pyc
+docker-web-gui/.server.pid
