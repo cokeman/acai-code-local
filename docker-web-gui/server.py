@@ -296,6 +296,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
         elif path.startswith("/api/logs/"):
             container = path[len("/api/logs/"):]
             self.handle_logs(container)
+        elif path == "/api/local-webs":
+            self.handle_local_webs()
         elif path == "/api/browse":
             self.handle_browse(qs)
         elif path == "/api/browse-files":
@@ -314,6 +316,10 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self.handle_stop(body)
         elif path == "/api/destroy":
             self.handle_destroy(body)
+        elif path == "/api/local-webs/delete":
+            self.handle_local_webs_delete(body)
+        elif path == "/api/local-webs/open":
+            self.handle_local_webs_open(body)
         elif path == "/api/acai/login":
             self.handle_acai_login(body)
         elif path == "/api/acai/select-domain":
@@ -535,6 +541,81 @@ class Handler(http.server.BaseHTTPRequestHandler):
             "output": clean_out,
         })
 
+
+    # ---- Local Webs ----
+
+    def handle_local_webs(self):
+        """List folders inside ~/webs/."""
+        webs_dir = DEFAULT_WEBS_DIR
+        if not webs_dir.is_dir():
+            self.send_json({"webs": []})
+            return
+
+        running_dirs = set()
+        for p in get_projects():
+            d = p.get("project_dir", "")
+            if d:
+                running_dirs.add(d)
+
+        webs = []
+        try:
+            for item in sorted(webs_dir.iterdir()):
+                if not item.is_dir() or item.name.startswith("."):
+                    continue
+                try:
+                    stat = item.stat()
+                    mtime = stat.st_mtime
+                except OSError:
+                    mtime = 0
+                webs.append({
+                    "name": item.name,
+                    "path": str(item),
+                    "modified": mtime,
+                    "running": str(item) in running_dirs,
+                })
+        except PermissionError:
+            pass
+
+        self.send_json({"webs": webs})
+
+    def handle_local_webs_delete(self, body):
+        """Delete a local web folder."""
+        folder = body.get("path", "")
+        if not folder:
+            self.send_error_json("path is required")
+            return
+        p = Path(folder).resolve()
+        # Safety: must be inside ~/webs/
+        if not str(p).startswith(str(DEFAULT_WEBS_DIR.resolve())):
+            self.send_error_json("Path must be inside ~/webs/")
+            return
+        if not p.is_dir():
+            self.send_error_json("Directory not found")
+            return
+        try:
+            shutil.rmtree(str(p))
+            self.send_json({"success": True})
+        except Exception as e:
+            self.send_json({"success": False, "error": str(e)})
+
+    def handle_local_webs_open(self, body):
+        """Open a folder in the system file manager."""
+        folder = body.get("path", "")
+        if not folder:
+            self.send_error_json("path is required")
+            return
+        p = Path(folder).resolve()
+        if not str(p).startswith(str(DEFAULT_WEBS_DIR.resolve())):
+            self.send_error_json("Path must be inside ~/webs/")
+            return
+        if not p.is_dir():
+            self.send_error_json("Directory not found")
+            return
+        try:
+            subprocess.Popen(["open", str(p)])
+            self.send_json({"success": True})
+        except Exception as e:
+            self.send_json({"success": False, "error": str(e)})
 
     # ---- Acai Code Auth ----
 
