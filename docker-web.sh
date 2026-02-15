@@ -31,6 +31,7 @@ Opciones:
   --remote-dbname <nombre>    Nombre de la BD remota
   --remote-port <puerto>      Puerto MySQL remoto (default: 3306)
   --redis                     Incluir contenedor Redis
+  --acai                      Modo Acai: web-base compartida + overlays
   --stop                      Parar los contenedores del proyecto
   --destroy                   Parar y eliminar volúmenes del proyecto
   --list                      Listar proyectos docker-web activos
@@ -66,6 +67,7 @@ REMOTE_PASS=""
 REMOTE_DBNAME=""
 REMOTE_PORT="3306"
 WITH_REDIS=false
+ACAI_MODE=false
 DO_STOP=false
 DO_DESTROY=false
 DO_LIST=false
@@ -92,6 +94,7 @@ while [[ $# -gt 0 ]]; do
         --remote-dbname) REMOTE_DBNAME="$2"; shift 2 ;;
         --remote-port) REMOTE_PORT="$2"; shift 2 ;;
         --redis)       WITH_REDIS=true; shift ;;
+        --acai)        ACAI_MODE=true; shift ;;
         --stop)        DO_STOP=true; shift ;;
         --destroy)     DO_DESTROY=true; shift ;;
         --list)        DO_LIST=true; shift ;;
@@ -129,10 +132,13 @@ fi
 
 PROJECT_NAME=$(basename "$PROJECT_DIR" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9_-]/_/g')
 DOCKER_DIR="$PROJECT_DIR/.docker"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+WEB_BASE_DIR="$SCRIPT_DIR/web-base"
 
 # ---- Funcion: restaurar archivos parcheados ----
 
 restore_files() {
+    [[ -f "$PROJECT_DIR/.acai" ]] && return
     local settings_backup="$DOCKER_DIR/settings.dat.php.backup"
     local settings_file
     settings_file=$(find "$PROJECT_DIR" -path "*/cms/data/settings.dat.php" -type f 2>/dev/null | head -1)
@@ -350,8 +356,35 @@ msg "Generado init.sh"
 # ---- Generar docker-compose.yml ----
 
 # Construir seccion de volumenes del web
-WEB_VOLUMES="      - ${PROJECT_DIR}:/var/www/html
+if $ACAI_MODE; then
+    # Validar que web-base existe
+    if [[ ! -d "$WEB_BASE_DIR" ]]; then
+        err "web-base no encontrada en $WEB_BASE_DIR"
+        exit 1
+    fi
+    mkdir -p "$PROJECT_DIR/modulos" "$PROJECT_DIR/hooks" "$PROJECT_DIR/uploads"
+    WEB_VOLUMES="      - ${WEB_BASE_DIR}:/var/www/html:ro
+      - ${WEB_BASE_DIR}:/web-base-src:ro
+      - ./init.sh:/docker-entrypoint-init.d/init.sh
+      - ${PROJECT_DIR}/modulos:/var/www/html/template/estandar/modulos
+      - ${PROJECT_DIR}/hooks:/var/www/html/hooks
+      - ${PROJECT_DIR}/uploads:/var/www/html/cms/uploads"
+    # Layout
+    [[ -f "$PROJECT_DIR/layout.json" ]] && WEB_VOLUMES+="
+      - ${PROJECT_DIR}/layout.json:/var/www/html/cms/lib/plugins/builder_saas/layout.json"
+    # Configs parcheadas (se generan mas abajo)
+    WEB_VOLUMES+="
+      - ./settings.dat.php:/var/www/html/cms/data/settings.dat.php
+      - ./.htaccess:/var/www/html/.htaccess"
+    # Caches escribibles (originales se copian desde /web-base-src al arrancar)
+    WEB_VOLUMES+="
+      - acai_cache:/var/www/html/cms/data/cache
+      - acai_js_cache:/var/www/html/template/estandar/js/minified
+      - acai_css_cache:/var/www/html/template/estandar/css/minified"
+else
+    WEB_VOLUMES="      - ${PROJECT_DIR}:/var/www/html
       - ./init.sh:/docker-entrypoint-init.d/init.sh"
+fi
 
 # Montar SQL si existe
 if [[ -n "$SQL_IN_DOCKER" ]]; then
@@ -370,6 +403,7 @@ if $WITH_REDIS; then
     labels:
       docker-web: \"true\"
       docker-web-project: \"${PROJECT_NAME}\"
+      docker-web-dir: \"${PROJECT_DIR}\"
     restart: unless-stopped
     network_mode: \"service:web\"
     depends_on:
@@ -392,6 +426,12 @@ WEB_ENV="      - DB_SERVER=\${DB_SERVER}
       - DB_USERNAME=\${DB_USERNAME}
       - DB_PASSWORD=\${DB_PASSWORD}"
 
+# Pre-comando acai: copiar originales de web-base a volumes escribibles
+ACAI_PRECMD=""
+if $ACAI_MODE; then
+    ACAI_PRECMD="cp -rp /web-base-src/template/estandar/js/minified/* /var/www/html/template/estandar/js/minified/ 2>/dev/null; cp -rp /web-base-src/template/estandar/css/minified/* /var/www/html/template/estandar/css/minified/ 2>/dev/null; chown -R www-data:www-data /var/www/html/template/estandar/js/minified /var/www/html/template/estandar/css/minified /var/www/html/cms/data/cache 2>/dev/null; mkdir -p /var/www/html/cms/uploads/webp 2>/dev/null; chown -R www-data:www-data /var/www/html/cms/uploads 2>/dev/null; "
+fi
+
 cat > "$DOCKER_DIR/docker-compose.yml" <<EOF
 services:
   web:
@@ -400,6 +440,7 @@ services:
     labels:
       docker-web: "true"
       docker-web-project: "${PROJECT_NAME}"
+      docker-web-dir: "${PROJECT_DIR}"
     ports:
       - "${WEB_PORT}:80"
     volumes:
@@ -408,7 +449,7 @@ ${WEB_VOLUMES}
 ${WEB_ENV}
 ${WEB_DEPENDS}
     command: >
-      bash -c "chmod +x /docker-entrypoint-init.d/init.sh &&
+      bash -c "${ACAI_PRECMD}chmod +x /docker-entrypoint-init.d/init.sh &&
                /docker-entrypoint-init.d/init.sh &&
                apache2-foreground"
 
@@ -418,6 +459,7 @@ ${WEB_DEPENDS}
     labels:
       docker-web: "true"
       docker-web-project: "${PROJECT_NAME}"
+      docker-web-dir: "${PROJECT_DIR}"
     environment:
       - MYSQL_ROOT_PASSWORD=\${DB_ROOT_PASSWORD}
       - MYSQL_DATABASE=\${DB_DATABASE}
@@ -434,60 +476,94 @@ ${WEB_DEPENDS}
       retries: 5
 ${REDIS_SERVICE}
 volumes:
-  db_data:
+  db_data:$(if $ACAI_MODE; then echo "
+  acai_cache:
+  acai_js_cache:
+  acai_css_cache:"; fi)
 EOF
 
 msg "Generado docker-compose.yml"
 
 # ---- Parchear settings.dat.php del CMS (si existe) ----
 
-SETTINGS_FILE=$(find "$PROJECT_DIR" -path "*/cms/data/settings.dat.php" -type f 2>/dev/null | head -1)
-if [[ -n "$SETTINGS_FILE" ]]; then
-    SETTINGS_BACKUP="$DOCKER_DIR/settings.dat.php.backup"
-
-    # Solo hacer backup si no existe uno ya (para no sobreescribir el original)
-    if [[ ! -f "$SETTINGS_BACKUP" ]]; then
-        cp "$SETTINGS_FILE" "$SETTINGS_BACKUP"
-        msg "Backup de settings.dat.php creado"
+if $ACAI_MODE; then
+    SETTINGS_SRC="$WEB_BASE_DIR/cms/data/settings.dat.php"
+    SETTINGS_DEST="$DOCKER_DIR/settings.dat.php"
+    if [[ -f "$SETTINGS_SRC" ]]; then
+        cp "$SETTINGS_SRC" "$SETTINGS_DEST"
+        sed -i '' -E '/^\[mysql\]/,/^\[/ {
+            s/^(hostname = ).*/\1"db"/
+            s/^(database = ).*/\1"'"${DB_DATABASE}"'"/
+            s/^(username = ).*/\1"'"${DB_USERNAME}"'"/
+            s/^(password = ).*/\1"'"${DB_PASSWORD}"'"/
+        }' "$SETTINGS_DEST"
+        msg "settings.dat.php generado en .docker/"
     fi
+else
+    SETTINGS_FILE=$(find "$PROJECT_DIR" -path "*/cms/data/settings.dat.php" -type f 2>/dev/null | head -1)
+    if [[ -n "$SETTINGS_FILE" ]]; then
+        SETTINGS_BACKUP="$DOCKER_DIR/settings.dat.php.backup"
 
-    # Parchear: apuntar la BD al contenedor Docker
-    sed -i '' -E '/^\[mysql\]/,/^\[/ {
-        s/^(hostname = ).*/\1"db"/
-        s/^(database = ).*/\1"'"${DB_DATABASE}"'"/
-        s/^(username = ).*/\1"'"${DB_USERNAME}"'"/
-        s/^(password = ).*/\1"'"${DB_PASSWORD}"'"/
-    }' "$SETTINGS_FILE"
+        # Solo hacer backup si no existe uno ya (para no sobreescribir el original)
+        if [[ ! -f "$SETTINGS_BACKUP" ]]; then
+            cp "$SETTINGS_FILE" "$SETTINGS_BACKUP"
+            msg "Backup de settings.dat.php creado"
+        fi
 
-    msg "settings.dat.php parcheado para Docker (hostname=db)"
+        # Parchear: apuntar la BD al contenedor Docker
+        sed -i '' -E '/^\[mysql\]/,/^\[/ {
+            s/^(hostname = ).*/\1"db"/
+            s/^(database = ).*/\1"'"${DB_DATABASE}"'"/
+            s/^(username = ).*/\1"'"${DB_USERNAME}"'"/
+            s/^(password = ).*/\1"'"${DB_PASSWORD}"'"/
+        }' "$SETTINGS_FILE"
+
+        msg "settings.dat.php parcheado para Docker (hostname=db)"
+    fi
 fi
 
 # ---- Parchear .htaccess: desactivar redirect HTTPS (si existe) ----
 
-if [[ -f "$PROJECT_DIR/.htaccess" ]]; then
-    HTACCESS_BACKUP="$DOCKER_DIR/htaccess.backup"
-
-    if [[ ! -f "$HTACCESS_BACKUP" ]]; then
-        cp "$PROJECT_DIR/.htaccess" "$HTACCESS_BACKUP"
-        msg "Backup de .htaccess creado"
+if $ACAI_MODE; then
+    HTACCESS_SRC="$WEB_BASE_DIR/.htaccess"
+    HTACCESS_DEST="$DOCKER_DIR/.htaccess"
+    if [[ -f "$HTACCESS_SRC" ]]; then
+        cp "$HTACCESS_SRC" "$HTACCESS_DEST"
+        sed -i '' '/RewriteCond %{SERVER_PORT} 80/{
+            s/^/# [docker-web] /
+            n
+            s/^/# [docker-web] /
+        }' "$HTACCESS_DEST"
+        msg ".htaccess generado en .docker/"
     fi
+else
+    if [[ -f "$PROJECT_DIR/.htaccess" ]]; then
+        HTACCESS_BACKUP="$DOCKER_DIR/htaccess.backup"
 
-    # Comentar la regla generica de redirect puerto 80 -> HTTPS
-    sed -i '' '/RewriteCond %{SERVER_PORT} 80/{
-        s/^/# [docker-web] /
-        n
-        s/^/# [docker-web] /
-    }' "$PROJECT_DIR/.htaccess"
+        if [[ ! -f "$HTACCESS_BACKUP" ]]; then
+            cp "$PROJECT_DIR/.htaccess" "$HTACCESS_BACKUP"
+            msg "Backup de .htaccess creado"
+        fi
 
-    msg ".htaccess parcheado: desactivado redirect HTTPS"
+        # Comentar la regla generica de redirect puerto 80 -> HTTPS
+        sed -i '' '/RewriteCond %{SERVER_PORT} 80/{
+            s/^/# [docker-web] /
+            n
+            s/^/# [docker-web] /
+        }' "$PROJECT_DIR/.htaccess"
+
+        msg ".htaccess parcheado: desactivado redirect HTTPS"
+    fi
 fi
 
 # ---- Agregar .docker a .gitignore si no esta ----
 
-if [[ -f "$PROJECT_DIR/.gitignore" ]]; then
-    if ! grep -qx '\.docker/' "$PROJECT_DIR/.gitignore" 2>/dev/null; then
-        echo '.docker/' >> "$PROJECT_DIR/.gitignore"
-        msg "Agregado .docker/ a .gitignore"
+if ! $ACAI_MODE; then
+    if [[ -f "$PROJECT_DIR/.gitignore" ]]; then
+        if ! grep -qx '\.docker/' "$PROJECT_DIR/.gitignore" 2>/dev/null; then
+            echo '.docker/' >> "$PROJECT_DIR/.gitignore"
+            msg "Agregado .docker/ a .gitignore"
+        fi
     fi
 fi
 

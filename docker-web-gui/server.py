@@ -230,17 +230,34 @@ def get_projects():
             if match:
                 projects[proj]["db_port"] = match.group(1)
 
-    # Intentar detectar el directorio del proyecto via docker inspect
+    # Intentar detectar el directorio del proyecto via label o docker inspect
     for proj_name, proj_data in projects.items():
         web_containers = [c for c in proj_data["containers"] if c["name"].endswith("-web")]
         if web_containers:
+            # Try label first (works for both acai and local modes)
             rc, out, _ = run_cmd([
                 "docker", "inspect",
-                "--format", "{{range .Mounts}}{{if eq .Destination \"/var/www/html\"}}{{.Source}}{{end}}{{end}}",
+                "--format", '{{index .Config.Labels "docker-web-dir"}}',
                 web_containers[0]["name"]
             ])
-            if rc == 0 and out.strip():
+            if rc == 0 and out.strip() and out.strip() != "<no value>":
                 proj_data["project_dir"] = out.strip()
+            else:
+                # Fallback: inspect mounts (for old containers without label)
+                rc, out, _ = run_cmd([
+                    "docker", "inspect",
+                    "--format", "{{range .Mounts}}{{if eq .Destination \"/var/www/html\"}}{{.Source}}{{end}}{{end}}",
+                    web_containers[0]["name"]
+                ])
+                if rc == 0 and out.strip():
+                    proj_data["project_dir"] = out.strip()
+
+        # Add acai flag
+        pdir = proj_data.get("project_dir", "")
+        if pdir:
+            proj_data["acai"] = (Path(pdir) / ".acai").exists()
+        else:
+            proj_data["acai"] = False
 
     return list(projects.values())
 
@@ -489,6 +506,10 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if body.get("rebuild"):
             args.append("--rebuild")
 
+        # Acai mode
+        if body.get("acai") or (Path(path) / ".acai").exists():
+            args.append("--acai")
+
         # Ejecutar con timeout largo para builds
         rc, out, err = run_cmd(args, timeout=300)
         # Limpiar códigos ANSI del output
@@ -567,12 +588,30 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     mtime = stat.st_mtime
                 except OSError:
                     mtime = 0
-                webs.append({
+                entry = {
                     "name": item.name,
                     "path": str(item),
                     "modified": mtime,
                     "running": str(item) in running_dirs,
-                })
+                    "acai": (item / ".acai").is_file(),
+                    "has_db": (item / "database.sql").is_file(),
+                }
+                # Count modules, hooks, assets
+                modulos_dir = item / "modulos"
+                if modulos_dir.is_dir():
+                    entry["modules"] = sum(1 for x in modulos_dir.iterdir() if x.is_dir())
+                hooks_dir = item / "hooks"
+                if hooks_dir.is_dir():
+                    entry["hooks"] = sum(1 for x in hooks_dir.iterdir() if x.suffix == ".php")
+                layout_file = item / "layout.json"
+                if layout_file.is_file():
+                    try:
+                        with open(layout_file) as f:
+                            layout = json.load(f)
+                        entry["assets"] = len(layout.get("librariesJSONt") or []) + len(layout.get("librariesJSONb") or [])
+                    except Exception:
+                        pass
+                webs.append(entry)
         except PermissionError:
             pass
 
@@ -711,7 +750,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
         })
 
     def handle_acai_pull_web(self, body):
-        """Pull a web from Acai: copy base + download modules, hooks, layout."""
+        """Pull a web from Acai: create slim dir + download modules, hooks, layout."""
         domain = body.get("domain", "")
         ssl_enabled = str(body.get("ssl", "1")) != "0"
         token = body.get("token", "")
@@ -738,18 +777,23 @@ class Handler(http.server.BaseHTTPRequestHandler):
         errors = []
         base_payload = {"token": token, "tokenHash": token_hash}
 
-        # Step 1: Copy web-base
+        # Step 1: Create slim directory + .acai marker
         try:
-            dest.parent.mkdir(parents=True, exist_ok=True)
-            if dest.exists():
-                shutil.rmtree(str(dest))
-            shutil.copytree(
-                str(WEB_BASE_DIR), str(dest),
-                ignore=shutil.ignore_patterns('.git', '.docker', '.DS_Store'),
-            )
-            steps.append("Base copiada a {}".format(dest))
+            dest.mkdir(parents=True, exist_ok=True)
+            acai_marker = dest / ".acai"
+            import time
+            marker_data = {
+                "domain": domain,
+                "ssl": ssl_enabled,
+                "timestamp": time.time(),
+            }
+            with open(str(acai_marker), "w", encoding="utf-8") as f:
+                json.dump(marker_data, f, ensure_ascii=False, indent=2)
+            (dest / "modulos").mkdir(exist_ok=True)
+            (dest / "hooks").mkdir(exist_ok=True)
+            steps.append("Directorio slim creado en {}".format(dest))
         except Exception as e:
-            self.send_json({"success": False, "error": "Error copiando base: {}".format(e)})
+            self.send_json({"success": False, "error": "Error creando directorio: {}".format(e)})
             return
 
         # Step 2: Get layout data
@@ -758,8 +802,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
             result = acai_web_request(domain, ssl_enabled, payload, timeout=30)
             if result.get("data"):
                 layout_data = result["data"]
-                layout_path = dest / "cms" / "lib" / "plugins" / "builder_saas" / "layout.json"
-                layout_path.parent.mkdir(parents=True, exist_ok=True)
+                layout_path = dest / "layout.json"
                 with open(str(layout_path), "w", encoding="utf-8") as f:
                     json.dump(layout_data, f, ensure_ascii=False, indent=2)
                 steps.append("Layout descargado")
@@ -801,8 +844,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 ]
                 steps.append("{} modulos encontrados".format(len(module_names)))
 
-                # Clear existing modules from web-base copy
-                modules_dir = dest / "template" / "estandar" / "modulos"
+                modules_dir = dest / "modulos"
+                # Clean existing modules
                 if modules_dir.exists():
                     shutil.rmtree(str(modules_dir))
                 modules_dir.mkdir(parents=True, exist_ok=True)
@@ -843,7 +886,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 payload = dict(base_payload, action_ws="getFTPFiles", path="cms/uploads/")
                 result = acai_web_request(domain, ssl_enabled, payload, timeout=30)
                 if isinstance(result, list):
-                    uploads_dir = dest / "cms" / "uploads"
+                    uploads_dir = dest / "uploads"
                     uploads_dir.mkdir(parents=True, exist_ok=True)
                     for entry in result:
                         fname = entry.get("filename", "")
@@ -863,12 +906,71 @@ class Handler(http.server.BaseHTTPRequestHandler):
             except Exception as e:
                 errors.append("Uploads: {}".format(e))
 
+        # Step 6: Mysqldump (optional, if db_password provided)
+        has_db = False
+        db_password = body.get("db_password", "")
+        if db_password:
+            db_host = body.get("db_host", "")
+            db_user = body.get("db_user", "")
+            db_name = body.get("db_name", "")
+            if db_host and db_user and db_name:
+                try:
+                    dump_file = dest / "database.sql"
+                    # Try local mysqldump first, fall back to docker
+                    mysqldump_cmd = None
+                    rc_which, _, _ = run_cmd(["which", "mysqldump"])
+                    if rc_which == 0:
+                        mysqldump_cmd = [
+                            "mysqldump",
+                            "-h", db_host,
+                            "-u", db_user,
+                            "-p{}".format(db_password),
+                            "--single-transaction",
+                            "--routines",
+                            "--triggers",
+                            db_name,
+                        ]
+                    else:
+                        mysqldump_cmd = [
+                            "docker", "run", "--rm",
+                            "mariadb:10.11",
+                            "mysqldump",
+                            "-h", db_host,
+                            "-u", db_user,
+                            "-p{}".format(db_password),
+                            "--single-transaction",
+                            "--routines",
+                            "--triggers",
+                            db_name,
+                        ]
+
+                    rc, out, err = run_cmd(mysqldump_cmd, timeout=120)
+                    if rc == 0 and out.strip():
+                        # Clean DEFINERs
+                        clean_dump = re.sub(
+                            r'/\*![0-9]+ DEFINER=`[^`]*`@`[^`]*`\*/',
+                            '',
+                            out,
+                        )
+                        with open(str(dump_file), "w", encoding="utf-8") as f:
+                            f.write(clean_dump)
+                        has_db = True
+                        steps.append("Base de datos descargada (database.sql)")
+                    else:
+                        errors.append("mysqldump: {}".format(err.strip()[:200] if err else "sin output"))
+                except Exception as e:
+                    errors.append("mysqldump: {}".format(e))
+            else:
+                errors.append("mysqldump: faltan credenciales (host/user/db)")
+
         self.send_json({
             "success": True,
+            "acai": True,
             "project_dir": str(dest),
             "modules_count": modules_count,
             "hooks_count": hooks_count,
             "uploads_count": uploads_count,
+            "has_db": has_db,
             "steps": steps,
             "errors": errors,
         })

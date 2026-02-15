@@ -544,6 +544,35 @@ input:read-only { opacity: 0.5; cursor: default; }
   color: var(--text2);
   word-break: break-all;
 }
+.local-web-stats {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+.local-web-stats .stat-box {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 5px 10px;
+  font-size: 12px;
+  color: var(--text2);
+}
+.local-web-stats .stat-box .stat-icon {
+  font-size: 13px;
+  opacity: 0.7;
+}
+.local-web-stats .stat-box .stat-num {
+  font-weight: 700;
+  font-size: 14px;
+  color: var(--text);
+}
+.local-web-stats .stat-box.stat-modules { border-color: rgba(59,130,246,0.3); background: rgba(59,130,246,0.06); }
+.local-web-stats .stat-box.stat-hooks   { border-color: rgba(168,85,247,0.3); background: rgba(168,85,247,0.06); }
+.local-web-stats .stat-box.stat-assets  { border-color: rgba(34,197,94,0.3);  background: rgba(34,197,94,0.06);  }
+.local-web-stats .stat-box.stat-db      { border-color: rgba(249,115,22,0.3); background: rgba(249,115,22,0.06); }
 .local-web-actions {
   display: flex;
   gap: 6px;
@@ -708,7 +737,7 @@ input:read-only { opacity: 0.5; cursor: default; }
     <div class="nav-label">Menu</div>
     <div class="nav-item active" onclick="showPage('projects', this)">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
-      Proyectos
+      En ejecución
       <span class="nav-badge" id="projectsCount">0</span>
     </div>
     <div class="nav-item" onclick="showPage('nueva-web', this)">
@@ -717,7 +746,7 @@ input:read-only { opacity: 0.5; cursor: default; }
     </div>
     <div class="nav-item" onclick="showPage('webs-locales', this)">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
-      Webs Locales
+      Acai Pulls
       <span class="nav-badge" id="websCount">0</span>
     </div>
   </nav>
@@ -737,7 +766,7 @@ input:read-only { opacity: 0.5; cursor: default; }
   <!-- ====== PAGE: Proyectos ====== -->
   <div class="page active" id="page-projects">
     <div class="main-header">
-      <h2>Proyectos</h2>
+      <h2>En ejecución</h2>
       <div class="main-header-actions">
         <button class="btn btn-secondary btn-sm" onclick="refreshProjects()">Refrescar</button>
       </div>
@@ -756,68 +785,9 @@ input:read-only { opacity: 0.5; cursor: default; }
     </div>
     <div class="main-content">
 
-      <!-- Source mode tabs -->
-      <div class="tabs mode-tabs">
-        <div class="tab active" onclick="switchMode('acai', this)">Acai</div>
-        <div class="tab" onclick="switchMode('local', this)">Local</div>
-      </div>
-
-      <!-- === Acai mode === -->
-      <div class="mode-content active" id="mode-acai">
-
-        <!-- Connection status bar -->
-        <div class="acai-conn-bar" id="acaiConnBar">
-          <div id="acaiConnNone" style="display:flex;align-items:center;justify-content:space-between;width:100%;">
-            <span style="color:var(--text2);">Sin conexion a Acai Code</span>
-            <button class="btn btn-primary btn-sm" onclick="openAcaiModal()">Conectar</button>
-          </div>
-          <div id="acaiConnOk" style="display:none;align-items:center;justify-content:space-between;width:100%;">
-            <div style="display:flex;align-items:center;gap:8px;">
-              <span class="acai-dot connected"></span>
-              <span>Conectado a <strong id="acaiConnDomainName"></strong></span>
-            </div>
-            <div style="display:flex;gap:6px;">
-              <button class="btn btn-ghost btn-xs" onclick="openAcaiModal()">Cambiar</button>
-              <button class="btn btn-ghost btn-xs" onclick="acaiLogout()">Desconectar</button>
-            </div>
-          </div>
-        </div>
-
-        <!-- Step 1: Pull Web (visible after domain selection) -->
-        <div class="card" id="pullCard" style="display:none;">
-          <div class="card-header">
-            <span class="step-badge" id="pullStepBadge">1</span>
-            Traer Web
-          </div>
-          <div class="card-body">
-            <div class="form-row full">
-              <div class="form-group">
-                <label>Directorio destino</label>
-                <input type="text" id="pullDestDir" placeholder="~/webs/dominio.com">
-              </div>
-            </div>
-            <div class="toggle-row">
-              <div class="toggle-switch" id="toggleUploads" onclick="this.classList.toggle('on')"></div>
-              <span class="toggle-label">Incluir uploads (imagenes, archivos subidos)</span>
-            </div>
-            <div class="actions-row" style="margin-top:8px">
-              <button class="btn btn-primary" id="pullWebBtn" onclick="pullWeb()">Traer Web</button>
-            </div>
-            <div class="output-panel" id="pullWebOutput">
-              <div class="log-output" id="pullWebLog"></div>
-            </div>
-          </div>
-        </div>
-
-      </div>
-
-      <!-- === Local mode (empty, launch card below is enough) === -->
-      <div class="mode-content" id="mode-local"></div>
-
-      <!-- Shared: Launch card -->
+      <!-- Launch card -->
       <div class="card" id="launchCard">
         <div class="card-header">
-          <span class="step-badge" id="launchStepBadge" style="display:none;">2</span>
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg>
           Levantar Proyecto
         </div>
@@ -909,15 +879,66 @@ input:read-only { opacity: 0.5; cursor: default; }
     </div>
   </div>
 
-  <!-- ====== PAGE: Webs Locales ====== -->
+  <!-- ====== PAGE: Acai Pulls ====== -->
   <div class="page" id="page-webs-locales">
     <div class="main-header">
-      <h2>Webs Locales</h2>
+      <h2>Acai Pulls</h2>
       <div class="main-header-actions">
         <button class="btn btn-secondary btn-sm" onclick="refreshLocalWebs()">Refrescar</button>
       </div>
     </div>
     <div class="main-content">
+
+      <!-- Acai connection bar -->
+      <div class="acai-conn-bar" id="acaiConnBar">
+        <div id="acaiConnNone" style="display:flex;align-items:center;justify-content:space-between;width:100%;">
+          <span style="color:var(--text2);">Sin conexion a Acai Code</span>
+          <button class="btn btn-primary btn-sm" onclick="openAcaiModal()">Conectar</button>
+        </div>
+        <div id="acaiConnOk" style="display:none;align-items:center;justify-content:space-between;width:100%;">
+          <div style="display:flex;align-items:center;gap:8px;">
+            <span class="acai-dot connected"></span>
+            <span>Conectado a <strong id="acaiConnDomainName"></strong></span>
+          </div>
+          <div style="display:flex;gap:6px;">
+            <button class="btn btn-ghost btn-xs" onclick="openAcaiModal()">Cambiar</button>
+            <button class="btn btn-ghost btn-xs" onclick="acaiLogout()">Desconectar</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Pull card (visible after domain selection) -->
+      <div class="card" id="pullCard" style="display:none;">
+        <div class="card-header">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          Traer Web
+        </div>
+        <div class="card-body">
+          <div class="form-row full">
+            <div class="form-group">
+              <label>Directorio destino</label>
+              <input type="text" id="pullDestDir" placeholder="~/webs/dominio.com">
+            </div>
+          </div>
+          <div class="toggle-row">
+            <div class="toggle-switch" id="toggleUploads" onclick="this.classList.toggle('on')"></div>
+            <span class="toggle-label">Incluir uploads (imagenes, archivos subidos)</span>
+          </div>
+          <div class="form-row full" style="margin-top:4px">
+            <div class="form-group">
+              <label>Clave MySQL</label>
+              <input type="password" id="pullDbPassword" placeholder="Password de la base de datos">
+            </div>
+          </div>
+          <div class="actions-row" style="margin-top:8px">
+            <button class="btn btn-primary" id="pullWebBtn" onclick="pullWeb()">Traer Web</button>
+          </div>
+          <div class="output-panel" id="pullWebOutput">
+            <div class="log-output" id="pullWebLog"></div>
+          </div>
+        </div>
+      </div>
+
       <p style="color:var(--text2); font-size:13px; margin-bottom:16px;">Carpetas en <strong>~/webs/</strong></p>
       <div id="localWebsList">
         <div class="empty-state">Cargando...</div>
@@ -1034,8 +1055,6 @@ input:read-only { opacity: 0.5; cursor: default; }
 let browserMode = 'project';
 let browserSelected = null;
 let activeTab = 'local';
-let currentMode = 'acai';
-let acaiPullDone = false;
 
 let acaiSession = {
   username: '',
@@ -1056,40 +1075,9 @@ function showPage(pageId, navEl) {
   if (navEl) navEl.classList.add('active');
 }
 
-// ---- Mode switching (Acai / Local) ----
-function switchMode(mode, el) {
-  currentMode = mode;
-  el.closest('.tabs').querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-  el.classList.add('active');
-  document.querySelectorAll('.mode-content').forEach(c => c.classList.remove('active'));
-  const mc = document.getElementById('mode-' + mode);
-  if (mc) mc.classList.add('active');
-  updateLaunchCardState();
-}
-
-function updateLaunchCardState() {
-  const card = document.getElementById('launchCard');
-  const badge = document.getElementById('launchStepBadge');
-  if (currentMode === 'acai') {
-    badge.style.display = '';
-    if (!acaiPullDone) {
-      card.classList.add('disabled');
-    } else {
-      card.classList.remove('disabled');
-    }
-  } else {
-    badge.style.display = 'none';
-    card.classList.remove('disabled');
-  }
-}
-
 // ---- Acai Modal ----
 function openAcaiModal() {
-  showPage('nueva-web', document.querySelectorAll('.nav-item')[1]);
-  if (currentMode !== 'acai') {
-    const acaiTab = document.querySelector('.mode-tabs .tab');
-    if (acaiTab) switchMode('acai', acaiTab);
-  }
+  showPage('webs-locales', document.querySelectorAll('.nav-item')[2]);
   syncAcaiModalState();
   openModal('acaiModal');
 }
@@ -1134,8 +1122,6 @@ function updateAcaiUI() {
     connBar.classList.remove('connected');
     pullCard.style.display = 'none';
   }
-
-  updateLaunchCardState();
 }
 
 // ---- API helpers ----
@@ -1169,6 +1155,7 @@ function renderProjectCard(p) {
   const statusBadge = p.status === 'running'
     ? '<span class="badge badge-running">Running</span>'
     : '<span class="badge badge-stopped">Stopped</span>';
+  const acaiBadge = p.acai ? ' <span class="badge-acai">Acai</span>' : '';
 
   const webLink = p.web_url
     ? `<span>Web: <a href="${p.web_url}" target="_blank">${p.web_url}</a></span>`
@@ -1182,7 +1169,7 @@ function renderProjectCard(p) {
   return `
     <div class="project-card">
       <div class="project-info">
-        <div class="project-name">${escapeHtml(p.name)} ${statusBadge}</div>
+        <div class="project-name">${escapeHtml(p.name)} ${statusBadge}${acaiBadge}</div>
         <div class="project-details">
           ${webLink} ${dbInfo} ${dirInfo}
         </div>
@@ -1539,12 +1526,9 @@ async function acaiSelectDomain(domainNum, domainName) {
 
     // Close modal and update main page
     closeModal('acaiModal');
-    acaiPullDone = false;
     document.getElementById('pullDestDir').value = '~/webs/' + (data.domain.domain || domainName);
     document.getElementById('pullWebOutput').classList.remove('visible');
     document.getElementById('pullWebLog').textContent = '';
-    document.getElementById('pullStepBadge').textContent = '1';
-    document.getElementById('pullStepBadge').classList.remove('done');
     updateAcaiUI();
   } catch (e) {
     showAcaiStatus('acaiDomainStatus', 'error', 'Error: ' + e.message);
@@ -1553,8 +1537,6 @@ async function acaiSelectDomain(domainNum, domainName) {
 
 function acaiLogout() {
   acaiSession = { username: '', hash: '', domains: [], token: '', tokenHash: '', domain: null, user: null };
-  acaiPullDone = false;
-
   // Reset modal state
   document.getElementById('acaiLoginSection').style.display = 'block';
   document.getElementById('acaiDomainsSection').style.display = 'none';
@@ -1563,8 +1545,6 @@ function acaiLogout() {
   document.getElementById('acaiDomainStatus').innerHTML = '';
 
   // Reset pull state
-  document.getElementById('pullStepBadge').textContent = '1';
-  document.getElementById('pullStepBadge').classList.remove('done');
   document.getElementById('pullWebOutput').classList.remove('visible');
   document.getElementById('pullWebLog').textContent = '';
 
@@ -1581,6 +1561,13 @@ async function pullWeb() {
 
   const destDir = document.getElementById('pullDestDir').value.trim();
   const includeUploads = document.getElementById('toggleUploads').classList.contains('on');
+  const dbPassword = document.getElementById('pullDbPassword').value;
+
+  if (!dbPassword) {
+    alert('Introduce la clave MySQL');
+    document.getElementById('pullDbPassword').focus();
+    return;
+  }
 
   const btn = document.getElementById('pullWebBtn');
   btn.disabled = true;
@@ -1592,16 +1579,21 @@ async function pullWeb() {
   logEl.textContent = 'Iniciando descarga de ' + acaiSession.domain.domain + '...\n';
 
   try {
+    const pullBody = {
+      domain: acaiSession.domain.domain,
+      ssl: acaiSession.domain.ssl,
+      token: acaiSession.token,
+      tokenHash: acaiSession.tokenHash,
+      dest_dir: destDir || '',
+      include_uploads: includeUploads,
+    };
+    pullBody.db_password = dbPassword;
+    pullBody.db_host = acaiSession.domain.mysql_host || '';
+    pullBody.db_user = acaiSession.domain.mysql_user || '';
+    pullBody.db_name = acaiSession.domain.mysql_db || '';
     const data = await api('/api/acai/pull-web', {
       method: 'POST',
-      body: JSON.stringify({
-        domain: acaiSession.domain.domain,
-        ssl: acaiSession.domain.ssl,
-        token: acaiSession.token,
-        tokenHash: acaiSession.tokenHash,
-        dest_dir: destDir || '',
-        include_uploads: includeUploads,
-      }),
+      body: JSON.stringify(pullBody),
     });
 
     if (data.success) {
@@ -1614,31 +1606,12 @@ async function pullWeb() {
       output += 'Directorio: ' + data.project_dir + '\n';
       output += 'Modulos: ' + data.modules_count + '\n';
       output += 'Hooks: ' + data.hooks_count + '\n';
+      if (data.has_db) output += 'Base de datos: database.sql\n';
       if (data.uploads_count) output += 'Uploads: ' + data.uploads_count + '\n';
       logEl.textContent = output;
 
-      // Auto-fill launch form
-      document.getElementById('projectDir').value = data.project_dir;
-
-      // Enable Redis
-      const redisToggle = document.getElementById('toggleRedis');
-      if (!redisToggle.classList.contains('on')) redisToggle.classList.add('on');
-
-      // Auto-fill remote DB if available
-      if (acaiSession.domain.mysql_host) {
-        document.getElementById('remoteHost').value = acaiSession.domain.mysql_host;
-        document.getElementById('remoteUser').value = acaiSession.domain.mysql_user || '';
-        document.getElementById('remotePass').value = acaiSession.domain.mysql_pass || '';
-        document.getElementById('remoteDbname').value = acaiSession.domain.mysql_db || '';
-        const remoteTab = document.querySelector('[data-tab="remote"]');
-        if (remoteTab) switchTab('remote', remoteTab);
-      }
-
-      // Mark step 1 done, enable step 2
-      acaiPullDone = true;
-      document.getElementById('pullStepBadge').innerHTML = '&#10003;';
-      document.getElementById('pullStepBadge').classList.add('done');
-      updateLaunchCardState();
+      // Refresh list
+      refreshLocalWebs();
     } else {
       logEl.textContent = 'Error: ' + (data.error || JSON.stringify(data));
     }
@@ -1684,15 +1657,24 @@ async function refreshLocalWebs() {
 
 function renderLocalWebCard(w) {
   const runBadge = w.running ? ' <span class="badge badge-running">Running</span>' : '';
+  const acaiBadge = w.acai ? ' <span class="badge-acai">Acai</span>' : '';
   const date = new Date(w.modified * 1000);
   const dateStr = date.toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' });
+  const statParts = [];
+  if (w.modules !== undefined) statParts.push(`<div class="stat-box stat-modules"><span class="stat-icon">&#9638;</span><span class="stat-num">${w.modules}</span>módulos</div>`);
+  if (w.hooks !== undefined) statParts.push(`<div class="stat-box stat-hooks"><span class="stat-icon">&#9672;</span><span class="stat-num">${w.hooks}</span>hooks</div>`);
+  if (w.assets !== undefined) statParts.push(`<div class="stat-box stat-assets"><span class="stat-icon">&#9830;</span><span class="stat-num">${w.assets}</span>assets</div>`);
+  if (w.has_db) statParts.push(`<div class="stat-box stat-db"><span class="stat-icon">&#9707;</span>BD</div>`);
+  const statsHtml = statParts.length ? `<div class="local-web-stats">${statParts.join('')}</div>` : '';
   return `
     <div class="local-web-card">
       <div class="local-web-info">
-        <div class="local-web-name">${escapeHtml(w.name)}${runBadge}</div>
+        <div class="local-web-name">${escapeHtml(w.name)}${runBadge}${acaiBadge}</div>
         <div class="local-web-meta">${escapeHtml(w.path)} &middot; ${dateStr}</div>
+        ${statsHtml}
       </div>
       <div class="local-web-actions">
+        ${w.acai ? `<button class="btn btn-primary btn-sm" id="launch-${escapeAttr(w.name)}" onclick="launchAcaiWeb('${escapeAttr(w.path)}', ${!!w.has_db})" ${w.running ? 'disabled title="Ya está en ejecución"' : ''}>Levantar</button>` : ''}
         <button class="btn btn-secondary btn-sm" onclick="openLocalWebFolder('${escapeAttr(w.path)}')">Abrir carpeta</button>
         <button class="btn btn-danger btn-sm" onclick="confirmDeleteLocalWeb('${escapeAttr(w.path)}', '${escapeAttr(w.name)}')" ${w.running ? 'disabled title="Para el proyecto primero"' : ''}>Eliminar</button>
       </div>
@@ -1734,11 +1716,53 @@ async function deleteLocalWeb(path) {
   }
 }
 
+// ---- Launch Acai Web from Acai Pulls ----
+async function launchAcaiWeb(path, hasDb) {
+  const body = {
+    project_dir: path,
+    acai: true,
+    redis: true,
+  };
+  if (hasDb) {
+    body.sql_file = path + '/database.sql';
+  }
+
+  const btn = event && event.target.closest('.btn');
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner"></span> Levantando...';
+  }
+
+  try {
+    const data = await api('/api/launch', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    });
+
+    if (data.success) {
+      refreshProjects();
+      refreshLocalWebs();
+    } else {
+      document.getElementById('outputTitle').textContent = 'Error al levantar';
+      document.getElementById('outputContent').textContent = data.output || 'Error desconocido';
+      openModal('outputModal');
+    }
+  } catch (e) {
+    document.getElementById('outputTitle').textContent = 'Error';
+    document.getElementById('outputContent').textContent = 'Error de conexion: ' + e.message;
+    openModal('outputModal');
+  }
+
+  if (btn) {
+    btn.disabled = false;
+    btn.innerHTML = 'Levantar';
+  }
+}
+
 // ---- Init ----
 refreshProjects();
 refreshLocalWebs();
 setInterval(refreshProjects, 15000);
-updateLaunchCardState();
 </script>
 </body>
 </html>

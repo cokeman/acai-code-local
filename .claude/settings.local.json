@@ -6,7 +6,9 @@
       "Bash(docker ps:*)",
       "Bash(curl:*)",
       "Bash(docker exec:*)",
-      "Bash(/Users/jordandiaz/scripts/docker-web.sh:*)"
+      "Bash(/Users/jordandiaz/scripts/docker-web.sh:*)",
+      "Bash(bash -n:*)",
+      "Bash(docker compose:*)"
     ]
   }
 }
