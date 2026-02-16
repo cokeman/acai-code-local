@@ -1,0 +1,12 @@
+cms/uploads
+lib/vendors
+logs/
+.docker/
+cms/lib/plugins/cms_api/*/lib/php-jwt/
+cms/lib/plugins/payments/custom-schema.ini.php
+cms/lib/plugins/payments/Stripe/vendor/stripe/stripe-php/README.md
+modulos_php/botones_compra/stripe/defaults.php
+modulos_php/botones_compra/stripe/stripe/tests/ProductTest.php
+modulos_php/botones_compra/stripe/stripe/README.md
+modulos_php/compras/paypal/stripe/tests/ProductTest.php
+modulos_php/compras/paypal/stripe/README.md

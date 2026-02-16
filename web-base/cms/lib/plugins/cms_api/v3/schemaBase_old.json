@@ -1,0 +1,164 @@
+{
+    "host": "https://directorio.domingoalonsogroup.com",
+    "basePath": "/api",
+    "title": "Directorio",
+    "vars": {
+        "headerBase": {
+            "Content-type": {
+                "value": "application/json",
+                "required": true
+            },
+            "Authorization": {
+                "value": "Bearer {{token}}",
+                "required": true
+            }
+        }
+    },
+    "info": [],
+    "endPoints": {
+        "auth": {
+            "title": "Login",
+            "description": "Petición de Login. Sólo debe de ser ejecutado la primera vez para obtener el token. Una vez recogido el token se insertará en las cabeceras Authorization:Bearer {{token}}",
+            "methods": [{
+                "POST": {
+                    "headers": {
+                        "Content-length": {
+                            "value": "0",
+                            "description": "",
+                            "required": true
+                        },
+                        "Content-type": {
+                            "value": "application/json",
+                            "required": true
+                        },
+                        "Authorization": {
+                            "value": "Login YXBpcmVzdDpQKFxUZjkvPjRdNnRjLUYa=",
+                            "required": true
+                        }
+                    }
+                }
+            }]
+        },
+        "bulk": {
+            "title": "Registros en masa",
+            "description": "Se realizan acciones a varios registros de varias tablas",
+            "controller": "Bulk",
+            "methods": {
+                "POST": {
+                    "headers": "headerBase",
+                    "body":{
+                        "apartados":{
+                            "where": [
+                                {
+                                    "value": "whereBase",
+                                    "required": false
+                                }
+                            ],
+                            "order":{
+                                "value":"num desc",
+                                "required":false
+                            },
+                            "limit":{
+                                "value":10,
+                                "required":false
+                            }
+                        } 
+                    }
+                }
+            }
+        },
+        "apartados": {
+            "title": "Apartados",
+            "description": "Gestión de apartados",
+            "hiddenFields":["breadcrumb","siblingOrder"],
+            "notEditableFields":["num"],
+            "methods": {
+                "GET": {
+                    "headers": "headerBase"
+                },
+                "POST": {
+                    "headers": "headerBase",
+                    "body": {
+                        "data": {
+                            "name": {
+                                "value": "Apartado",
+                                "required": true
+                            },
+                            "content": {
+                                "value": "Contenido del apartado",
+                                "required": false
+                            },
+                            "parentNum": {
+                                "value": 10,
+                                "required": false,
+                                "default": 0
+                            },
+                            "visible_en_el_menu": {
+                                "value": 1,
+                                "required": false,
+                                "default": 0
+                            }
+                        }
+                    }
+                }
+            },
+            "search": {
+                "methods": {
+                    "POST": {
+                        "headers": "headerBase",
+                        "body": {
+                            "where": {
+                                "value": "whereBase",
+                                "required": false
+                            },
+                            "order":{
+                                "value":"num desc",
+                                "required":false
+                            },
+                            "limit":{
+                                "value":10,
+                                "required":false
+                            }
+                        }
+                    }
+                }
+            },
+            ":": {
+                "variable" : "num",
+                "methods": {
+                    "GET": {
+                        "headers": "headerBase"
+                    },
+                    "PATCH": {
+                        "headers": "headerBase",
+                        "body": {
+                            "data": {
+                                "name": {
+                                    "value": "Apartado nombre",
+                                    "required": true
+                                },
+                                "content": {
+                                    "value": "Contenido del apartado",
+                                    "required": false
+                                }
+                            },
+                            "where": {
+                                "value": "whereBase",
+                                "required": false
+                            }
+                        }
+                    },
+                    "DELETE": {
+                        "headers": "headerBase",
+                        "body": {
+                            "where": {
+                                "value": "whereBase",
+                                "required": false
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

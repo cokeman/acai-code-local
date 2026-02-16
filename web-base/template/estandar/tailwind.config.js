@@ -1,0 +1,1 @@
+module.exports = { defaultExtractor: (content) => content.match(/[^<>"'`\s]*[^<>"'`\s:]/g) || []};

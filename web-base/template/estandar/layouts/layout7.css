@@ -1,0 +1,166 @@
+/**********/
+/* BANNER */
+/**********/
+
+#banner h1 {
+	text-transform:capitalize;
+	color:#404040;;
+}
+
+.navbar-nav>li>.dropdown-menu {
+    border-radius: 0;
+}
+
+#banner{width: 94%; margin: 0 auto; overflow: hidden; position: relative;}
+#banner li{height: 38vw; display: flex !important;}
+#banner .imagen{position: absolute; left: 0; top: 0; width: 100%; height: 100%; background-attachment: fixed; z-index: -1; 
+    -webkit-animation: kenburns infinite 60s;
+    -o-animation: kenburns infinite 60s;
+    animation: kenburns infinite 60s;
+}
+#banner .imagen:after{padding-top: 0;}
+#banner li>div:not(.imagen){padding: 0 40px; width: 100%;}
+#banner h4, #banner h1{color: #fff; text-transform: uppercase;}
+#banner h4{margin-bottom: 20px; opacity: 0.9;}
+#banner h1{font-weight: 600;}
+
+@keyframes kenburns {
+    from{transform: scale(1); -webkit-transform: scale(1); -moz-transform: scale(1); -o-transform: scale(1);}
+    50%{transform: scale(1.3); -webkit-transform: scale(1.3); -moz-transform: scale(1.3); -o-transform: scale(1.3);}
+    to{transform: scale(1); -webkit-transform: scale(1); -moz-transform: scale(1); -o-transform: scale(1);}
+}
+
+/*******************/
+/* BLOQUES PORTADA */
+/*******************/
+.bloques-portada li{width: 50%; float: left; border: solid 1px #fff;}
+.bloques-portada{position: relative; overflow: hidden;}
+.bloques-portada .overlay{
+    opacity: 0;
+    position: absolute;
+    left: -150%;
+    top: 150%;
+    width: 150%;
+    height: 150%;
+    background-color: #217BC0;
+    transform: rotate(45deg);
+    -webkit-transform: rotate(45deg);
+    -moz-transform: rotate(45deg);
+    -o-transform: rotate(45deg);
+    -webkit-transition: all 0.5s;
+    -o-transition: all 0.5s;
+    -moz-transition: all 0.5s;
+    transition: all 0.5s;
+}
+.bloques-portada .overlay>div{transform: rotate(-45deg); -webkit-transform: rotate(-45deg); -moz-transform: rotate(-45deg); -o-transform: rotate(-45deg);}
+.bloques-portada a{font-size: 24px; color: #fff; font-weight: 600;}
+.bloques-portada:hover .overlay{opacity: 1; top: -25%; left: -25%;}
+
+.call-to-action-portada .image-wrapper{border-radius: 50%; margin-bottom: 20px; overflow: hidden; border: solid 7px #88d2e8;}
+.call-to-action-portada li:nth-child(2n) .image-wrapper{border-color: #c9def4;}
+.call-to-action-portada .imagen{border-radius: 50%; -webkit-transition: all 0.4s; -o-transition: all 0.4s; -moz-transition: all 0.4s; transition: all 0.4s; opacity: 0.75;}
+.call-to-action-portada li{text-align:center;}
+.call-to-action-portada li{margin-bottom:30px;}
+.call-to-action-portada .image-wrapper{max-width:200px;margin:0 auto;margin-bottom:20px;}
+.call-to-action-portada .imagen:hover{opacity: 1;}
+.call-to-action-portada li:hover .imagen{transform: rotate(5deg); -webkit-transform: rotate(5deg); -moz-transform: rotate(5deg);}
+.call-to-action-portada h3{text-align: center; margin-bottom: 15px;}
+.call-to-action-portada p{font-size: 14px; text-align: center;}
+
+/**************/
+/* NEWSLETTER */
+/**************/
+#newsletter{background-size: cover; background-attachment: fixed; background-position: center; color: #fff;}
+#newsletter h2, #newsletter .subtitulo{color: #fff;}
+#newsletter form{text-align: center;}
+#newsletter .form-group{width: 60%;}
+#newsletter .form-control{width: 50%;}
+#newsletter .form-control{box-shadow: none; -webkit-box-shadow: none; border-radius: 500px; background-color: rgba(255,255,255,0.3); padding: 10px 20px; height:47px;border-color: #fff;color:#fff;}
+#newsletter .form-control::placeholder{color: rgba(255,255,255,1);}
+
+/************/
+/* NOTICIAS */
+/************/
+.bloque-noticia{width: calc(50% - 10px); margin: 10px 5px; overflow: hidden; position: relative; float: left;}
+.bloque-noticia h3, .bloque-noticia p{color: #fff;}
+.bloque-noticia .imagen{background-size: 140%; background-position: 0 center;}
+.bloque-noticia .imagen:after{padding-top: 61.80339887%}
+.bloque-noticia .overlay{
+    position: absolute;
+    left: -20%;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    opacity: 0;
+    padding: 20px;
+    background: -moz-linear-gradient(90deg, rgba(21, 60, 124, 0.8) 0%, rgba(21, 60, 124, 0) 80%);
+    background: -webkit-linear-gradient(90deg, rgba(21, 60, 124, 0.8) 0%,rgba(21, 60, 124, 0) 80%);
+    background: linear-gradient(90deg, rgba(21, 60, 124, 0.8) 0%,rgba(21, 60, 124, 0) 80%);
+}
+.bloque-noticia .imagen, .bloque-noticia .overlay{-webkit-transition: all 0.4s; -o-transition: all 0.4s; -moz-transition: all 0.4s; transition: all 0.4s;}
+.bloque-noticia:hover .imagen{background-position: 40% center;}
+.bloque-noticia:hover .overlay{opacity: 1; left: 0;}
+
+/*************/
+/* SERVICIOS */
+/*************/
+.bloque-servicio{width: 50%; float: left; position: relative; display: block;}
+.bloque-servicio>a>.flex>div{width: 50%;}
+.bloque-servicio .content{padding: 20px; background-color: #fafafa; min-height: 200px;}
+.bloque-servicio .image-wrapper{position: relative;}
+.bloque-servicio .imagen{transition: all 0.2s; -webkit-transition: all 0.2s; -moz-transition: all 0.2s; -o-transition: all 0.2s; opacity: 0.75; position: absolute; left: 0; top: 0; width: 100%; height: 100%;}
+.bloque-servicio:hover .imagen{transform: scale(1.2) rotate(3deg); -webkit-transform: scale(1.2) rotate(3deg); -moz-transform: scale(1.2) rotate(3deg); -ms-transform: scale(1.2) rotate(3deg);}
+.bloque-servicio h3{font-weight: 500;}
+.bloque-servicio p{text-align: left; font-size: 15px; color: #727272;}
+
+.triangle-left, .triangle-right{position: relative;}
+.triangle-left:after{
+    content: "";
+    display: block;
+    position: absolute;
+    left: -12px;
+    top: calc(50% - 6px);
+    width: 0;
+    height: 0;
+    border-style: solid;
+    border-width: 12px 12px 12px 0;
+    border-color: transparent #fafafa transparent transparent;
+    z-index: 99;
+}
+.triangle-right:after{
+    content: "";
+    display: block;
+    position: absolute;
+    right: -12px;
+    top: calc(50% - 6px);
+    width: 0;
+    height: 0;
+    border-style: solid;
+    border-width: 12px 0 12px 12px;
+    border-color: transparent transparent transparent #fafafa;
+    z-index: 99;
+}
+
+/***************/
+/* RESPONSIVO */
+/***************/
+
+@media screen and (max-width: 1200px){
+    .no-flex-md{display:block;}
+}
+
+@media screen and (max-width: 992px){
+    .no-flex-sm{display:block;}
+    .bloque-noticia{width: 100%; margin: 0 0 20px;}
+    .bloque-servicio{width: 100%; margin-bottom: 10px;}
+    #banner{height: 70vh;}
+    #banner h1{font-size: 30px;}
+}
+
+@media screen and (max-width: 768px){
+    .no-flex-xs{display:block;}
+    .call-to-action-portada .image-wrapper{max-width: 230px; display: block; margin-left: auto; margin-right: auto;}
+    #banner{height: calc(80vh - 60px);}
+    .bloque-noticia p{display: none;}
+    #newsletter .form-group{width: 100%; display: block;}
+}

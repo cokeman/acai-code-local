@@ -1,0 +1,7 @@
+class Api{static send(request_method="POST",url,header,body={},callback,server=Api.server,type){url=server+url;var xhr=new XMLHttpRequest();xhr.addEventListener("readystatechange",function(){if(this.readyState===4){try{callback(JSON.parse(this.responseText))}catch(error){callback(this.responseText)}}});xhr.open(request_method,url);for(const key in Api.defaultHeader){xhr.setRequestHeader(key,Api.defaultHeader[key])}
+if(header){for(const key in header){xhr.setRequestHeader(key,header[key])}}
+xhr.send(JSON.stringify(body))}
+static suscribeStripeMarketeina(selection){return new Promise((resolve,reject)=>{if(!Api.token){reject(new Error("No hay token"));return!1}
+Api.send("POST","/api/pay/",{Authorization:"Bearer "+Api.token},{method:"POST",action:"suscribeMarketeina",selection:selection},response=>{if(!response.success){if(JSON.parse(response).code==403){alert("Acceso a la aplicacion denegado, esto puede ocurrir por inactividad, vuelva a loguearse");localStorage.removeItem("COCOOKIE");localStorage.removeItem("COCOUSERNUM");window.location.reload()}}
+resolve(response)})})}}
+Api.user=null;Api.usernum=null;Api.token=null;Api.server="https://ws.cocosolution.com";Api.defaultHeader={"Content-type":"application/json"}

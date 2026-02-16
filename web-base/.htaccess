@@ -1,0 +1,272 @@
+<IfModule mod_deflate.c>
+    AddOutputFilterByType DEFLATE text/html text/plain text/xml text/css text/javascript application/javascript application/json
+</IfModule>
+
+
+<IfModule mod_headers.c>
+	Header set X-XSS-Protection "1; mode=block"
+    Header set X-Content-Type-Options nosniff
+    Header set Access-Control-Allow-Origin "*"
+    Header set Access-Control-Allow-Headers "Content-Type, Access-Control-Allow-Headers, Authorization, X-Requested-With, X-Acai-Token"
+</IfModule>
+
+
+<FilesMatch "\.(vue)$">
+    <IfModule mod_expires.c>
+        ExpiresActive Off
+    </IfModule>
+    <IfModule mod_headers.c>
+        FileETag None
+        Header unset ETag
+        Header unset Pragma
+        Header unset Cache-Control
+        Header unset Last-Modified
+        Header set Pragma "no-cache"
+        Header set Cache-Control "max-age=0, no-cache, no-store, must-revalidate"
+        Header set Expires "jue, 1 Jan 1970 00:00:00 GMT"
+    </IfModule>
+</FilesMatch>
+
+#php_flag opcache.enable Off
+<IfModule mod_expires.c>
+ExpiresActive On
+ExpiresByType image/jpg "access 1 year"
+ExpiresByType image/jpeg "access 1 year"
+ExpiresByType image/gif "access 1 year"
+ExpiresByType image/png "access 1 year"
+ExpiresByType image/webp "access 1 year"
+ExpiresByType image/svg+xml "access 1 year"
+ExpiresByType font/opentype "access 1 year"
+ExpiresByType font/ttf "access 1 year"
+ExpiresByType text/css "access 1 year"
+ExpiresByType application/pdf "access 1 month"
+ExpiresByType application/javascript "access 1 year"
+ExpiresByType application/x-javascript "access 1 year"
+ExpiresByType application/x-shockwave-flash "access 1 year"
+ExpiresByType image/x-icon "access 1 year"
+ExpiresDefault "access 2 days"
+</IfModule>
+<IfModule mod_filter.c>
+    AddOutputFilterByType DEFLATE "application/atom+xml" \
+                                  "application/javascript" \
+                                  "application/json" \
+                                  "application/ld+json" \
+                                  "application/manifest+json" \
+                                  "application/rdf+xml" \
+                                  "application/rss+xml" \
+                                  "application/schema+json" \
+                                  "application/vnd.geo+json" \
+                                  "application/vnd.ms-fontobject" \
+                                  "application/x-font-ttf" \
+                                  "application/x-javascript" \
+                                  "application/x-web-app-manifest+json" \
+                                  "application/xhtml+xml" \
+                                  "application/xml" \
+                                  "font/eot" \
+                                  "font/opentype" \
+                                  "image/bmp" \
+                                  "image/svg+xml" \
+                                  "image/vnd.microsoft.icon" \
+                                  "image/x-icon" \
+                                  "text/cache-manifest" \
+                                  "text/css" \
+                                  "text/html" \
+                                  "text/javascript" \
+                                  "text/plain" \
+                                  "text/vcard" \
+                                  "text/vnd.rim.location.xloc" \
+                                  "text/vtt" \
+                                  "text/x-component" \
+                                  "text/x-cross-domain-policy" \
+                                  "text/xml"
+
+</IfModule>
+
+# Use HTTP Strict Transport Security to force client to use secure connections only
+Header always set Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+
+<Files ~ "\.tpl$">
+    Order allow,deny
+    Deny from all
+</Files>
+
+
+Options -Indexes
+Options +FollowSymLinks
+Options -MultiViews
+
+DirectoryIndex index.php
+
+ErrorDocument 404 /404.php
+ErrorDocument 403 /403.php
+ErrorDocument 400 /400.php
+ErrorDocument 500 /500.php
+ErrorDocument 401 /401.php
+
+#php_value memory_limit 256M
+
+<IfModule mod_rewrite.c>
+# Activar RewriteEngine
+    RewriteEngine on
+
+    RewriteCond %{REQUEST_URI} /index.php
+    RewriteRule ^(.+[^/])$ / [R=301,L]
+
+    RewriteCond %{REQUEST_URI} /+[^\.]+$
+    RewriteRule ^(.+[^/])$ %{REQUEST_URI}/ [R=301,L]
+
+# Redirección a HTTPS y a WWW
+
+    RewriteCond %{SERVER_PORT} 80
+    RewriteRule ^(.*)$ https://%{HTTP_HOST}/$1 [R=301,L]
+
+    RewriteCond %{HTTP_HOST} ^www.quantumasis.plandeweb.com [NC]
+    RewriteRule ^(.*)$ https://quantumasis.plandeweb.com/$1 [L,R=301]
+
+    RewriteCond %{HTTP_HOST} ^www.lightbeecorp.com [NC]
+    RewriteRule ^(.*)$ https://lightbeecorp.com/$1 [L,R=301]
+
+    RewriteCond %{HTTP_HOST} ^www.lightbee-corp.com [NC]
+    RewriteRule ^(.*)$ https://lightbee-corp.com/$1 [L,R=301]
+
+    RewriteCond %{HTTP_HOST} ^www.opticaingenio.com [NC]
+    RewriteRule ^(.*)$ https://opticaingenio.com/$1 [L,R=301]
+
+    RewriteCond %{HTTP_HOST} ^www.grancanariavv.com [NC]
+    RewriteRule ^(.*)$ https://grancanariavv.com/$1 [L,R=301]
+
+    RewriteCond %{HTTP_HOST} ^www.vmcprevensys.com [NC]
+    RewriteRule ^(.*)$ https://vmcprevensys.com/$1 [L,R=301]
+
+    RewriteCond %{HTTP_HOST} ^www.clorofilachef.com [NC]
+    RewriteRule ^(.*)$ https://clorofilachef.com/$1 [L,R=301]
+
+    RewriteCond %{HTTP_HOST} ^www.grupoquintanas.com [NC]
+    RewriteRule ^(.*)$ https://grupoquintanas.com/$1 [L,R=301]
+
+    RewriteCond %{HTTP_HOST} ^www.mabriba.es [NC]
+    RewriteRule ^(.*)$ https://mabriba.es/$1 [L,R=301]
+
+    RewriteCond %{HTTP_HOST} ^www.nutibarainvest.com [NC]
+    RewriteRule ^(.*)$ https://nutibarainvest.com/$1 [L,R=301]
+
+    RewriteCond %{HTTP_HOST} ^www.seingroup.es [NC]
+    RewriteRule ^(.*)$ https://seingroup.es/$1 [L,R=301]
+
+    RewriteCond %{HTTP_HOST} ^www.elalpendredefelix.com [NC]
+    RewriteRule ^(.*)$ https://elalpendredefelix.com/$1 [L,R=301]
+
+    RewriteCond %{HTTP_HOST} ^www.marisagarcespsicologia.es [NC]
+    RewriteRule ^(.*)$ https://marisagarcespsicologia.es/$1 [L,R=301]
+
+    RewriteCond %{HTTP_HOST} ^www.betarealty.es [NC]
+    RewriteRule ^(.*)$ https://betarealty.es/$1 [L,R=301]
+
+    RewriteCond %{HTTP_HOST} ^www.comercial-yaumar.es [NC]
+    RewriteRule ^(.*)$ https://comercial-yaumar.es/$1 [L,R=301]
+
+    RewriteCond %{HTTP_HOST} ^www.doblelinea.com [NC]
+    RewriteRule ^(.*)$ https://doblelinea.com/$1 [L,R=301]
+
+    RewriteCond %{HTTP_HOST} ^www.vannagamma.com [NC]
+    RewriteRule ^(.*)$ https://vannagamma.com/$1 [L,R=301]
+
+    RewriteCond %{HTTP_HOST} ^www.fisioterapiamarcosleon.com [NC]
+    RewriteRule ^(.*)$ https://fisioterapiamarcosleon.com/$1 [L,R=301]
+
+    RewriteCond %{HTTP_HOST} ^www.clinicagaba.com [NC]
+    RewriteRule ^(.*)$ https://clinicagaba.com/$1 [L,R=301]
+
+    RewriteCond %{HTTP_HOST} ^www.regufarma.com [NC]
+    RewriteRule ^(.*)$ https://regufarma.com/$1 [L,R=301]
+
+    RewriteCond %{HTTP_HOST} ^www.mundoyc.com [NC]
+    RewriteRule ^(.*)$ https://mundoyc.com/$1 [L,R=301]
+
+    RewriteCond %{HTTP_HOST} ^www.usegturservicios.com [NC]
+    RewriteRule ^(.*)$ https://usegturservicios.com/$1 [L,R=301]
+
+    RewriteCond %{HTTP_HOST} ^www.tuyoga.es [NC]
+    RewriteRule ^(.*)$ https://tuyoga.es/$1 [L,R=301]
+
+    RewriteCond %{HTTP_HOST} ^www.clinica-ramos.com [NC]
+    RewriteRule ^(.*)$ https://clinica-ramos.com/$1 [L,R=301]
+
+    RewriteCond %{HTTP_HOST} ^www.terapeutaocupasionada.com [NC]
+    RewriteRule ^(.*)$ https://terapeutaocupasionada.com/$1 [L,R=301]
+
+    RewriteCond %{HTTP_HOST} ^www.pilarquijadacomunicacion.com [NC]
+    RewriteRule ^(.*)$ https://pilarquijadacomunicacion.com/$1 [L,R=301]
+
+    # RewriteCond %{HTTP_HOST} ^www.enredhadas.com [NC]
+    # RewriteRule ^(.*)$ https://enredhadas.com/$1 [L,R=301]
+
+    RewriteCond %{HTTP_HOST} ^www.bungalowselpalmital.es [NC]
+    RewriteRule ^(.*)$ https://bungalowselpalmital.es/$1 [L,R=301]
+
+    RewriteCond %{HTTP_HOST} ^www.barbaraleebtraducciones.com [NC]
+    RewriteRule ^(.*)$ https://barbaraleebtraducciones.com/$1 [L,R=301]
+
+# FAVICON
+    RewriteRule ^favicon.ico$ /template/estandar/icons/favicon.ico [L]
+
+# SITEMAP Y ROBOTS
+    RewriteRule ^sitemap\.xml /cms/sitemap.php [L]
+    RewriteRule ^robots\.txt /cms/robots.php [L]
+
+# IDIOMAS
+    #RewriteRule ^es/(.*)$ /$1 [L]
+
+# BLUR IMAGENES
+    RewriteRule ^blur/([a-zA-Z0-9-_./]*)(.*)$ blur.php?imagen=$1 [L]
+
+# APARTADOS
+    RewriteRule ^apartados/([a-zA-Z0-9-_]*)/([0-9]+)\.html(.*)$ apartados.php?num=$2 [L]
+
+# CONTENIDOS
+    RewriteRule ^contenidos/([a-zA-Z0-9-_]*)/([0-9]+)\.html(.*)$ contenidos.php?familia=$2 [L]
+    RewriteRule ^contenidos/([a-zA-Z0-9-_]*)/([a-zA-Z0-9-_]*)/([0-9]+)/([0-9]+)\.html(.*)$ contenidos.php?familia=$3&num=$4 [L]
+
+# OTROS CONTENIDOS
+    RewriteRule ^otros-contenidos/([a-zA-Z0-9-_]*)/([0-9]+)\.html(.*)$ otros_contenidos.php?num=$2 [L]
+
+# CONTACTO
+    RewriteRule ^contacto\.html(.*)$ contacto.php [L]
+
+# CATEGORIAS
+    RewriteRule ^categorias/([a-zA-Z0-9-_]*)/([0-9]+)\.html(.*)$ productos.php?categoria=$2
+
+# PRODUCTOS
+    RewriteRule ^productos/([a-zA-Z0-9-_]*)/([0-9]+)\.html(.*)$ productos.php?num=$2
+
+# SERVICE WORKER
+    RewriteRule ^sw.js$ lib/sw/sw.php [L]
+    RewriteRule ^manifest.json$ lib/sw/manifest.php [L]
+    RewriteRule ^template/estandar/js/sw-controller.js$ lib/sw/sw-controller.php [L]
+    RewriteRule ^(.+)-hsh([A-Za-z0-9]+).(.+)$ $1.$3 [L]
+    RewriteRule ^custom-builder-style.css cms/lib/plugins/builder_saas/replace_code.php?getStyle=1 [L]
+    RewriteRule ^custom-builder-javascript.js cms/lib/plugins/builder_saas/replace_code.php?getJavascript=1 [L]
+
+# CSS y JS
+    RewriteRule ^template/estandar/css/main.css$ lib/recursos.php?fileType=css [L]
+    RewriteRule ^template/estandar/js/main.js$ lib/recursos.php?fileType=js [L]
+
+
+##############
+# SLUG       #
+##############
+
+    #RewriteBase /dashboard-client/
+    #RewriteRule ^index\.html$ - [L]
+    #RewriteCond %{REQUEST_FILENAME} !-f
+    #RewriteCond %{REQUEST_FILENAME} !-d
+    #RewriteRule . /template/estandar/modulos/cuentadashboard_38o4db/index.html [L]
+
+# Permitir acceso directo a la carpeta 2fa y sus archivos
+RewriteCond %{REQUEST_URI} ^/2fa(/.*)?$
+RewriteRule ^ - [L]
+
+# ENLACES PERMANENTES
+RewriteRule ^([a-zA-Z0-9-\/_]*)$ slug.php?enlace=$1&%{QUERY_STRING}&tipo=barra [L]
+
+</IfModule>

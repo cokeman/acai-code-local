@@ -1,0 +1,51 @@
+{
+    "packages": [
+        {
+            "name": "aplazame/aplazame-api-sdk",
+            "version": "v0.3.6",
+            "version_normalized": "0.3.6.0",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/aplazame/php-sdk.git",
+                "reference": "a8da64706478b1ebb3f6ccfa6677710121846771"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/aplazame/php-sdk/zipball/a8da64706478b1ebb3f6ccfa6677710121846771",
+                "reference": "a8da64706478b1ebb3f6ccfa6677710121846771",
+                "shasum": ""
+            },
+            "require": {
+                "ext-json": "*",
+                "php": ">= 5.6.0"
+            },
+            "require-dev": {
+                "friendsofphp/php-cs-fixer": "1.11.*",
+                "phpunit/phpunit": "*"
+            },
+            "time": "2023-11-28T15:06:00+00:00",
+            "type": "library",
+            "installation-source": "dist",
+            "autoload": {
+                "psr-4": {
+                    "Aplazame\\": "src/"
+                }
+            },
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "GPL-3.0"
+            ],
+            "description": "Aplazame API SDK",
+            "keywords": [
+                "aplazame"
+            ],
+            "support": {
+                "issues": "https://github.com/aplazame/php-sdk/issues",
+                "source": "https://github.com/aplazame/php-sdk/tree/v0.3.6"
+            },
+            "install-path": "../aplazame/aplazame-api-sdk"
+        }
+    ],
+    "dev": true,
+    "dev-package-names": []
+}

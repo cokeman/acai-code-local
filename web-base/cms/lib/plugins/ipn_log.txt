@@ -1,0 +1,21 @@
+------
+2025-07-11 15:54:52 - Data truncated for column 'suscripcion' at row 1
+
+------
+2025-07-11 15:59:05 - Data truncated for column 'suscripcion' at row 1
+
+------
+2025-07-11 16:00:44 - Data truncated for column 'suscripcion' at row 1
+
+------
+2025-07-11 16:02:00 - Data truncated for column 'suscripcion' at row 1
+
+------
+2025-07-11 21:37:15 - You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near ')' at line 1
+
+------
+2025-07-11 21:50:27 - You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near ')' at line 1
+
+------
+2025-07-11 21:55:56 - You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near ')' at line 1
+

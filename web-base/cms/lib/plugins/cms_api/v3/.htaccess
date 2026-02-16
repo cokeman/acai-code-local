@@ -1,0 +1,27 @@
+<IfModule mod_headers.c>
+    Header unset Access-Control-Allow-Origin
+    Header unset Access-Control-Allow-Headers
+    
+    Header always set Access-Control-Allow-Origin "*"
+    Header always set Access-Control-Allow-Methods "GET,POST,OPTIONS,DELETE,PUT"
+    Header always set Access-Control-Allow-Headers "Content-Type, Access-Control-Allow-Headers, Authorization, X-Requested-With, Accept-Language"
+    Header always set Cache-Control "no-cache, no-store, must-revalidate" 	
+    Header always set Pragma "no-cache" 	
+    Header always set Expires 0    
+</IfModule>
+RewriteEngine On
+
+RewriteCond %{REQUEST_METHOD} OPTIONS 
+RewriteRule ^(.*)$ $1 [R=200,L]
+
+RewriteRule .* - [e=HTTP_AUTHORIZATION:%{HTTP:Authorization}]
+
+RewriteRule ^auth(.*)$ init.php?auth=1 [L]
+
+RewriteRule ^schemaBase.json$ json.php?type=base [L,QSA]
+RewriteRule ^schemaCustom.json$ json.php?type=custom [L,QSA]
+
+RewriteCond %{ENV:REDIRECT_STATUS} !=200
+RewriteCond %{REQUEST_URI} !^/cms/lib/plugins/cms_api/v3/schemaBase.json
+RewriteCond %{REQUEST_URI} !^/cms/lib/plugins/cms_api/v3/schemaCustom.json
+RewriteRule ^(.+)$ handler_cms.php?endpoint=$1 [L,QSA]

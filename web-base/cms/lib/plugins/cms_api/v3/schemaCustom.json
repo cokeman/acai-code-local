@@ -1,0 +1,308 @@
+{
+    "info":[
+        {"title":"Overview","description":"La API permite obtener acceso a funciones especiales designadas para el buen funcionamiento del server de chatbot"},
+        {"title":"Authentication","description":"El sistema de auth funciona a través de un login que se emite desde las cabeceras Authorization:Login. Posteriormente se recibe un token que es el que se envia a través de la cabecera Authorization:Bearer {{token}}. El usuario principal está dado de alta en el cms, si se desea se pueden cambiar las credenciales desde ahí pero hay que tener en cuenta que se modificarán los parámetros de login en las cabeceras."}
+    ],
+    "endPoints":{
+        "quantumAPI": {
+            "custom" : true,
+            "title": "QuantumAPI",
+            "description": "Se realizan acciones específicas sobre chats y usuarios",
+            "controller": "QuantumAPI",
+            "pipes":{        
+                "countRegisters":{
+                    "title":"Cuenta registros de una tabla",
+                    "description":"Cuenta los registros de la pagina pasada por parametro, en caso de no pasar nada lo hace de contactos",
+                    "params":{
+                        "table" : "Nombre de la tabla que se quiere contar",			
+                        "where" : "Condición que se aplica un el where, NO incluir 'WHERE'"						
+                    }
+                },
+                "getChat":{
+                    "title":"Obtener el Chat del usuario",
+                    "description":"Obtiene el chat del usuario y devuelve el num de este, si no existe lo crea ( si se le envia la variable createIfNotExists )",
+                    "params":{
+                        "userHash" : "Uuid del usuario",
+                        "domain" : "dominio de la empresa gestora del chat"
+                    }
+                },
+                "resolveChat":{
+                    "title":"Resuelve el chat del usuario",
+                    "description":"Resuelve el chat del usuario y devuelve el num de este, si no existe lo crea ( si se le envia la variable createIfNotExists )",
+                    "params":{
+                        "userHash" : "Uuid del usuario",
+                        "chat_num" : "num del chat",
+                        "domain" : "dominio de la empresa gestora del chat"
+                    }
+                },
+                "changeCategory":{
+                    "title":"Cambiar la categoría de un chat",
+                    "description":"Cambia la categoría de un chat",
+                    "params":{
+                        "chat_num" : "num del chat",
+                        "category" : "num de la categoría"
+                    }
+                },
+                "markAsRead":{
+                    "title":"Marcar un chat como leido",
+                    "description":"Marca un chat como leido por un usuario",
+                    "params":{
+                        "userHash" : "Uuid del usuario",
+                        "chat_num" : "num del chat"
+                    }
+                },
+                "getChats":{
+                    "title":"Obtener los Chats del dominio",
+                    "description":"Obtiene los chats del dominio",
+                    "params":{
+                        "domain" : "dominio de la empresa gestora del chat"
+                    }
+                },
+                "addMessage":{
+                    "title":"Añadir un mensaje a un chat",
+                    "description":"Crea un mensaje para un chat asignado",
+                    "params":{
+                        "message" : "mensaje en cuestion",
+                        "origin" : "assistant o user",
+                        "chat_id" : "identificador del chat ( num )",
+                        "userHash" : "Hash del usuario",
+                        "domain" : "Dominio",
+                        "userAgent" : "Hash del agente",
+                        "userData" : "Datos del usuario"
+                    }
+                },
+                "getChatbotFromHash":{
+                    "title":"Obtener chatbot por hash",
+                    "description":"",
+                    "params":{
+                        "hash" : "hash"
+                    }
+                },
+                "updateChatTopic":{
+                    "title":"Actualizar el topic de un chat",
+                    "description":"Utiliza la IA local para actualizar el topic de un chat aportado",
+                    "params":{
+                        "chat_id" : "identificador del chat ( num )"
+                    }
+                },
+                "getConfig":{
+                    "title":"Obtener conf. adicional",
+                    "description":"Obtiene una configuracion adicional de un chat configuracion y una key",
+                    "params":{
+                        "chat_conf_num" : "identificador del chat ( num )",
+                        "key" : "clave"
+                    }
+                },
+                "saveConfig":{
+                    "title":"Actualizar configuracion adicional",
+                    "description":"Setea una configuracion adicional a un chat configuracion",
+                    "params":{
+                        "chat_conf_num" : "identificador del chat ( num )",
+                        "key" : "clave",
+                        "value": "valor",
+                        "multiple" : "Booleano opcional si fuerza a tener sólo una configuracion o varias con la misma key"
+                    }
+                },
+                "tokensUsed":{
+                    "title":"Registrar tokens del cliente",
+                    "description":"Inserta un registro con los movimientos de tokens del cliente ( valores positivos y negativos )",
+                    "params":{
+                        "domain" : "dominio o numero asociado del cliente",
+                        "tokens" : "total de tokens. Un valor negativo resta tokens"
+                    }
+                },
+                "getJsonData":{
+                    "title":"Chatbot Configuracion",
+                    "description":"Obtener la información del chatbot asociado al cliente",
+                    "params":{
+                        "domain" : "dominio o numero asociado del cliente"
+                    }
+                },
+                "getEmbeddingsCSV":{
+                    "title":"Obtener Embeddings en CSV",
+                    "description":"Necesario para que el chatbot los utilice en las consultas",
+                    "params":{
+                        "domain" : "dominio o numero asociado del cliente"
+                    }
+                },
+                "saveJsonData":{
+                    "title":"Guardar Chatbot Configuracion",
+                    "description":"Guardar la información del chatbot asociado al cliente",
+                    "params":{
+                        "domain" : "dominio o numero asociado del cliente",
+                        "jsonData" : "datos en json estructurados según criterio del sistema"
+                    }
+                },
+                "getTrainedData":{
+                    "title":"Obtener los datos entrenados",
+                    "description":"Obtiene la información de los datos entrenados",
+                    "params":{
+                        "domain" : "dominio o numero asociado del cliente"
+                    }
+                },
+                "createEmbeddingsTrainData":{
+                    "title":"Enviar embeddings",
+                    "description":"Permite enviar los embeddings de un dato de entrenamiento",
+                    "params":{
+                        "training_data_num" : "identificador del registro del dato de entrenamiento",
+                        "data" : "Datos a enviar (n_tokens,text,embeddings)",
+                        "force" : "Si se desea forzar la creación aunque existan ( opcional )"
+                    }
+                },
+                "getScrapedCSVToTrain":{
+                    "title":"Obtener el CSV de los entrenamientos",
+                    "description":"Obtener el CSV para los entrenamientos. Lo que antes se utilizaba como scraped.csv",
+                    "params":{
+                        "chat_conf_id" : "identificador del registro de configuracion de chat"
+                    }
+                },
+                "addOrUpdateTextToTrain":{
+                    "title":"Crea o actualiza entrenamiento",
+                    "description":"Guardar la información del entrenamiento para el dominio asociado",
+                    "params":{
+                        "domain" : "dominio o numero asociado del cliente",
+                        "chat_conf_id" : "identificador del registro de configuracion de chat",
+                        "num" : "Se envia si se desea actualizar un registro existente (opcional)",
+                        "title" : "Titulo del documento (opcional)",
+                        "text" : "Texto del documento (opcional)",
+                        "n_tokens" : "Número de tokens del documento (opcional, se obtiene al generar el embedding)",
+                        "embeddings" : "embeddings del documento (opcional, se obtiene al generar el embedding)"
+                    }
+                },
+                "removeTrainedData":{
+                    "title":"Elimina entrenamiento",
+                    "description":"Elimina la información del entrenamiento para el dominio asociado",
+                    "params":{
+                        "domain" : "dominio o numero asociado del cliente",
+                        "num" : "Requerido el num a eliminar"
+                    }
+                },
+                "uploadFile":{
+                    "title":"Sube archivos al servidor",
+                    "description":"Se almacenan los archivos de entrenamiento (PDF, TXT, CSV, XML, XLSX) en el servidor",
+                    "params":{
+                        "file" : "en base64 o en blob",
+                        "title" : "Titulo del documento (opcional)",
+                        "processed" : "Puede ser verdadero o falso si ya esta procesado (opcional, se obtiene al entrenar)"
+                    }
+                },
+                "removeFile":{
+                    "title":"Borra archivos del servidor",
+                    "description":"Se borra los archivos de entrenamiento según el nombre del archivo",
+                    "params":{
+                        "filename" : "nombre del recurso que se quiere eliminar (Requerido)"
+                    }
+                },
+                "createOrUpdateIntegrationConfig":{
+                    "title":"Crear o actualiza configuración de los canales",
+                    "description":"Crea o actualiza la configuración de los canales",
+                    "params":{
+                        "chat_conf_num" : "Chat configuracion num de la configuración",
+                        "network" : "Canal de la configuración. Ejemplo 'whatsapp'",
+                        "network_config" : "Objeto de configuración de la integración"
+                    }
+                },
+                "getIntegrationConfig":{
+                    "title":"Obtiene configuración de los canales",
+                    "description":"Obtiene la configuración de los canales",
+                    "params":{
+                        "chat_conf_num" : "Num del chat configuracion de la configuración",
+                        "network" : "Red social de la configuración. Ejemplo 'whatsapp'"
+                    }
+                },
+                "deleteIntegrationConfig":{
+                    "title":"Eliminar configuración de los canales",
+                    "description":"Elimina la configuración de los canales",
+                    "params":{
+                        "num" : "Num del canal"
+                    }
+                },
+                "sendEmail":{
+                    "title":"Enviar un email",
+                    "description":"Envia email con el cuerpo pasado por parámetro al email que se pasa por parámetro",
+                    "params":{
+                        "email" : "email del nuevo agente",
+                        "cuerpo" : "string del cuerpo del mensaje, ejemplo:'INVITE_USER'",
+                        "dominio" : "num del dominio (chat_conf_num)",
+                        "rol" : "Num del rol | 1: admin | 2:agente"
+                    }
+                },
+                "saveSource":{
+                    "title":"Training Source",
+                    "description":"crea o edita un source para training data",
+                    "params":{
+                        "url" : "la URL donde se encuentra el recurso",
+                        "title" : "El título del recurso",
+                        "dominio" : "num del dominio (chat_conf_num)",
+                        "type" : "ENUM: 'web','pdf','ical','feed'"
+						
+                    }
+                },
+                "createTicket":{
+                    "title":"Create Ticket",
+                    "description":"crea un nuevo ticket",
+                    "params":{
+                        "title" : "El título del ticket",
+                        "body" : "El contenido 'puede ser texto enrriquecido'",
+                        "user" : "num del usuario que abre el ticket (userNum)",
+                        "priority_status" : "Prioridad de resolución. ENUM: 'Urgente','Normal','Critica','Baja'",
+                        "archivoUrl": "String de url con documento adjunto a mensaje"						
+                    }
+                },
+                "updateTicket":{
+                    "title":"Actualiza el Ticket",
+                    "description":"Actualiza un ticket",
+                    "params":{
+                        "user" : "num del usuario que modifica el ticket (userNum)",
+                        "ticketNum" : "num del ticket que se ve a modificar",
+                        "title" : "El título del ticket",
+                        "priority_status" : "Prioridad de resolución. ENUM: 'Urgente','Normal','Critica','Baja'",
+                        "state" : "Estado de resolución. ENUM: 'Abierta','Resuelta','En espera'"							
+                    }
+                },
+                "getTickets":{
+                    "title":"Listar Ticket",
+                    "description":"Retorna todos los tickets de un usuario",
+                    "params":{
+                        "user" : "num del usuario que abre el ticket (userNum)",
+                        "order" : "el orden del resultado 'asc','desc', por defecto desc",
+                        "order_field" : "Campor por el que ordenar, por defecto 'num'",
+                        "filterTerm" : "Cadena por la que se filtraran los resultados, solo filtra por tittle, por defecto es ''",
+                        "range" : "un rango de fechas para limitar en formato dd-mm-YYYY. Ejemplo [01-03-2024,01-10-2024], por defecto el mes actual",
+						"limit": "El limite de resultados a devolver, por defecto 50",
+						"offset": "Empieza los resultados desde el resultado número X en adelante, por defecto 0"
+                    }
+                },
+                "createTicketMessage":{
+                    "title":"Crear mensajes del Ticket",
+                    "description":"crea un nuevo mensaje en el ticket",
+                    "params":{
+                        "ticketNum" : "Ticket al que se le creara el mensaje",
+                        "body" : "El contenido 'puede ser texto enrriquecido'",
+                        "user" : "num del usuario que envia el mensaje",
+                        "archivoUrl": "String de url con documento adjunto a mensaje"					
+                    }
+                },
+                "getTicketsMessages":{
+                    "title":"Listar Mensajes del Ticket",
+                    "description":"Retorna todos los tickets de un usuario",
+                    "params":{
+                        "user" : "num del usuario que abre el ticket (userNum)",
+                        "ticketNum" : "Ticket desde el que se leeran los mensajes",
+                        "order" : "el orden del resultado 'asc','desc', por defecto desc",
+                        "order_field" : "Campor por el que ordenar, por defecto 'num'"
+                    }
+                }
+            },
+            "methods": {
+                "POST": {
+                    "headers": "baseHeaders",
+                    "body":{
+                    }
+                }
+            }
+        }    
+    }
+}
+
+

@@ -1,0 +1,1 @@
+/home/cokeman/domains/plandeweb.com/public_html/put/template/estandar/modulos/banner_interior/script-hshpql5l1.js

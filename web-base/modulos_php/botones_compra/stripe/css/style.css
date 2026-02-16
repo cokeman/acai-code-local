@@ -1,0 +1,49 @@
+/**
+    * The CSS shown here will not be introduced in the Quickstart guide, but shows
+    * how you can use CSS to style your Element's container.
+    */ 
+    #loadingStripe{display:none;}
+    .StripeElement,.modal .form-control {
+        background-color: white;
+        height: 40px !important;
+        padding: 10px 12px;
+        border-radius: 4px !important;
+        border:none !important;
+        border: 1px solid transparent;
+        box-shadow: 0 1px 3px 0 #e6ebf1;
+        -webkit-transition: box-shadow 150ms ease;
+        transition: box-shadow 150ms ease;
+    }
+.form-group.margin-0{margin:0px;}
+    
+    .stripeCorreo{
+        position:relative;
+        padding-left:40px;
+        width:100%;
+    }
+    .relative{position:relative;}
+    .emailStr::after {
+        content: "";
+        display:block;background-size:contain;
+        background-image: url("data:image/svg+xml;utf8;base64,PD94bWwgdmVyc2lvbj0iMS4wIiBlbmNvZGluZz0iaXNvLTg4NTktMSI/Pgo8IS0tIEdlbmVyYXRvcjogQWRvYmUgSWxsdXN0cmF0b3IgMTkuMC4wLCBTVkcgRXhwb3J0IFBsdWctSW4gLiBTVkcgVmVyc2lvbjogNi4wMCBCdWlsZCAwKSAgLS0+CjxzdmcgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIiB4bWxuczp4bGluaz0iaHR0cDovL3d3dy53My5vcmcvMTk5OS94bGluayIgdmVyc2lvbj0iMS4xIiBpZD0iTGF5ZXJfMSIgeD0iMHB4IiB5PSIwcHgiIHZpZXdCb3g9IjAgMCA1MTIuMDAxIDUxMi4wMDEiIHN0eWxlPSJlbmFibGUtYmFja2dyb3VuZDpuZXcgMCAwIDUxMi4wMDEgNTEyLjAwMTsiIHhtbDpzcGFjZT0icHJlc2VydmUiIHdpZHRoPSIxMjhweCIgaGVpZ2h0PSIxMjhweCI+CjxnPgoJPGc+CgkJPHBhdGggZD0iTTUxMS42NDYsMTI2LjYzNGMtMC4wMjEtMTQuNDQ5LTExLjc4Mi0yNi4xODktMjYuMjI3LTI2LjE4OWMtMC4wMTIsMC0wLjAyNCwwLTAuMDM0LDBMMjYuMTksMTAxLjA3NiAgICBjLTcuMDA1LDAuMDA5LTEzLjU4OCwyLjc0Ni0xOC41MzUsNy43MDZDMi43MDksMTEzLjc0My0wLjAwOSwxMjAuMzM0LDAsMTI3LjMzN2wwLjM1NSwyNTguMDI5ICAgIGMwLjAwOSw3LjAwNSwyLjc0NiwxMy41ODgsNy43MDYsMTguNTM1YzQuOTUxLDQuOTM4LDExLjUyNiw3LjY1NSwxOC41MTksNy42NTVjMC4wMTIsMCwwLjAyNSwwLDAuMDM1LDBsNDU5LjE5NC0wLjYzMSAgICBjMTQuNDU4LTAuMDIsMjYuMjA3LTExLjc5OSwyNi4xOS0yNi4yNjFMNTExLjY0NiwxMjYuNjM0eiBNNDU2LjYxMSwxMjYuNzFMMjU2LjAyLDI2Ni4xNTRMNTUuMDQsMTI3LjI2Mkw0NTYuNjExLDEyNi43MXogICAgIE0zNDAuODQ2LDI5Mi40NzFsMTE4Ljk3MSw5Mi4yNjVsLTQwNy45NzIsMC41NmwxMTkuNjk2LTkyLjgyNWM1LjcyMi00LjQzOSw2Ljc2NC0xMi42NzUsMi4zMjYtMTguMzk5ICAgIGMtNC40MzktNS43MjItMTIuNjc1LTYuNzY0LTE4LjM5OS0yLjMyNkwyNi41NjEsMzcxLjcxNWwtMC4zMi0yMzIuNDc1bDIyMi4zNDQsMTUzLjY1N2MyLjI0NCwxLjU1MSw0Ljg0OSwyLjMyNSw3LjQ1NSwyLjMyNSAgICBjMi42MTcsMCw1LjIzNi0wLjc4Myw3LjQ4NS0yLjM0NmwyMjEuOTEyLTE1NC4yNjRsMC4zMzYsMjMzLjA2NmwtMTI4Ljg1Ni05OS45MzFjLTUuNzE5LTQuNDM3LTEzLjk1OS0zLjM5Ni0xOC4zOTcsMi4zMjYgICAgQzMzNC4wODEsMjc5Ljc5NSwzMzUuMTIyLDI4OC4wMzMsMzQwLjg0NiwyOTIuNDcxeiIgZmlsbD0iI2I1YjViNSIvPgoJPC9nPgo8L2c+CjxnPgo8L2c+CjxnPgo8L2c+CjxnPgo8L2c+CjxnPgo8L2c+CjxnPgo8L2c+CjxnPgo8L2c+CjxnPgo8L2c+CjxnPgo8L2c+CjxnPgo8L2c+CjxnPgo8L2c+CjxnPgo8L2c+CjxnPgo8L2c+CjxnPgo8L2c+CjxnPgo8L2c+CjxnPgo8L2c+Cjwvc3ZnPgo=");
+        overflow: hidden;
+        background-repeat: no-repeat;
+        background-position: center center;
+        width:22px;height:24px;
+        position: absolute;
+        top: 7px;
+        left: 9px;
+    }
+
+    .StripeElement--focus {
+        box-shadow: 0 1px 3px 0 #cfd7df;
+    }
+
+    .StripeElement--invalid {
+        border-color: #fa755a;
+    }
+
+    .StripeElement--webkit-autofill {
+        background-color: #fefde5 !important;
+    }
+    .spinner{margin:100px auto;width:50px;height:40px;text-align:center;font-size:10px}.spinner>div{background-color:#888;height:100%;width:6px;margin-right:1px;display:inline-block;-webkit-animation:sk-stretchdelay 1.2s infinite ease-in-out;animation:sk-stretchdelay 1.2s infinite ease-in-out}.spinner .rect2{-webkit-animation-delay:-1.1s;animation-delay:-1.1s}.spinner .rect3{-webkit-animation-delay:-1s;animation-delay:-1s}.spinner .rect4{-webkit-animation-delay:-.9s;animation-delay:-.9s}.spinner .rect5{-webkit-animation-delay:-.8s;animation-delay:-.8s}@-webkit-keyframes sk-stretchdelay{0%,100%,40%{-webkit-transform:scaleY(.4)}20%{-webkit-transform:scaleY(1)}}@keyframes sk-stretchdelay{0%,100%,40%{transform:scaleY(.4);-webkit-transform:scaleY(.4)}20%{transform:scaleY(1);-webkit-transform:scaleY(1)}}
