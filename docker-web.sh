@@ -316,8 +316,23 @@ RUN echo "ServerName localhost" >> /etc/apache2/apache2.conf && \\
     echo "AddType text/css .vue" >> /etc/apache2/conf-available/custom-mime.conf && \\
     a2enconf custom-mime
 
-# Cliente MariaDB para importar SQL
-RUN apt-get update && apt-get install -y mariadb-client && rm -rf /var/lib/apt/lists/*
+# Cliente MariaDB para importar SQL + curl
+RUN apt-get update && apt-get install -y mariadb-client curl && rm -rf /var/lib/apt/lists/*
+
+# Cloudflared para tunel publico
+RUN ARCH=\$(dpkg --print-architecture) && \\
+    curl -L "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-\${ARCH}" \\
+    -o /usr/local/bin/cloudflared && \\
+    chmod +x /usr/local/bin/cloudflared
+
+# Bore para tunel TCP de la BD
+RUN ARCH=\$(dpkg --print-architecture) && \\
+    if [ "\$ARCH" = "amd64" ]; then BORE_ARCH="x86_64"; else BORE_ARCH="aarch64"; fi && \\
+    curl -L "https://github.com/ekzhang/bore/releases/download/v0.5.2/bore-v0.5.2-\${BORE_ARCH}-unknown-linux-musl.tar.gz" \\
+    -o /tmp/bore.tar.gz && \\
+    tar -xzf /tmp/bore.tar.gz -C /usr/local/bin/ && \\
+    chmod +x /usr/local/bin/bore && \\
+    rm /tmp/bore.tar.gz
 
 WORKDIR /var/www/html
 
@@ -365,6 +380,53 @@ INITEOF
 chmod +x "$DOCKER_DIR/init.sh"
 msg "Generado init.sh"
 
+# ---- Generar tunnel.sh ----
+
+cat > "$DOCKER_DIR/tunnel.sh" <<'TUNNELEOF'
+#!/bin/bash
+TUNNEL_URL_FILE="/tunnel-url/tunnel-url.txt"
+echo "" > "$TUNNEL_URL_FILE"
+
+cloudflared tunnel --url http://localhost:80 2>&1 | while IFS= read -r line; do
+    url=$(echo "$line" | grep -oE 'https://[a-zA-Z0-9-]+\.trycloudflare\.com')
+    if [ -n "$url" ]; then
+        echo "$url" > "$TUNNEL_URL_FILE"
+        echo "[tunnel] URL publica: $url"
+    fi
+done &
+
+echo "[tunnel] Cloudflared iniciado en background"
+
+# Bore: tunel TCP para la base de datos
+BORE_URL_FILE="/tunnel-url/bore-db-url.txt"
+echo "" > "$BORE_URL_FILE"
+
+BORE_LOG="/tmp/bore.log"
+bore local 3306 --local-host db --to bore.pub > "$BORE_LOG" 2>&1 &
+
+# Esperar a que bore escriba la URL (max 15s)
+(
+    for i in $(seq 1 30); do
+        sleep 0.5
+        if [ -f "$BORE_LOG" ]; then
+            addr=$(sed 's/\x1b\[[0-9;]*m//g' "$BORE_LOG" | grep -oE 'bore\.pub:[0-9]+' | head -1)
+            if [ -n "$addr" ]; then
+                echo "$addr" > "$BORE_URL_FILE"
+                echo "[bore] DB tunnel: $addr"
+                break
+            fi
+        fi
+    done
+) &
+
+echo "[bore] Bore iniciado en background"
+TUNNELEOF
+
+chmod +x "$DOCKER_DIR/tunnel.sh"
+touch "$DOCKER_DIR/tunnel-url.txt"
+touch "$DOCKER_DIR/bore-db-url.txt"
+msg "Generado tunnel.sh"
+
 # ---- Generar docker-compose.yml ----
 
 # Construir seccion de volumenes del web
@@ -408,6 +470,12 @@ if [[ -n "$SQL_IN_DOCKER" ]]; then
     WEB_VOLUMES="${WEB_VOLUMES}
       - ./${SQL_IN_DOCKER}:/docker-entrypoint-init.d/${SQL_IN_DOCKER}"
 fi
+
+# Tunnel volumes
+WEB_VOLUMES="${WEB_VOLUMES}
+      - ./tunnel.sh:/tunnel-url/tunnel.sh
+      - ./tunnel-url.txt:/tunnel-url/tunnel-url.txt
+      - ./bore-db-url.txt:/tunnel-url/bore-db-url.txt"
 
 # Redis (comparte red con web via network_mode para que 127.0.0.1:6379 funcione)
 REDIS_SERVICE=""
@@ -469,6 +537,7 @@ ${WEB_DEPENDS}
     command: >
       bash -c "${ACAI_PRECMD}chmod +x /docker-entrypoint-init.d/init.sh &&
                /docker-entrypoint-init.d/init.sh &&
+               chmod +x /tunnel-url/tunnel.sh && /tunnel-url/tunnel.sh &&
                apache2-foreground"
 
   db:
@@ -610,6 +679,23 @@ msg "  DB Pass:  ${DB_PASSWORD}"
 if $WITH_REDIS; then
 msg "  Redis:    disponible internamente en redis:6379"
 fi
+
+# Esperar URL del tunel (max 15 segundos)
+TUNNEL_URL=""
+msg "  Tunnel:   esperando URL publica..."
+for i in $(seq 1 15); do
+    TUNNEL_URL=$(cat "$DOCKER_DIR/tunnel-url.txt" 2>/dev/null | tr -d '[:space:]')
+    if [[ -n "$TUNNEL_URL" ]]; then
+        break
+    fi
+    sleep 1
+done
+if [[ -n "$TUNNEL_URL" ]]; then
+    msg "  Tunnel:   ${TUNNEL_URL}"
+else
+    warn "  Tunnel:   no disponible (sin conexion a internet?)"
+fi
+
 msg "============================================"
 msg ""
 msg "Para parar:     docker-web.sh ${PROJECT_DIR} --stop"

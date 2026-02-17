@@ -380,22 +380,31 @@ input:read-only { opacity: 0.5; cursor: default; }
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
-  padding: 16px 20px;
+  padding: 20px 24px;
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
+  flex-direction: column;
+  gap: 14px;
   transition: border-color var(--transition);
 }
 .project-card:hover { border-color: var(--border-hover); }
-.project-info { flex: 1; min-width: 0; }
-.project-name {
-  font-weight: 600;
-  font-size: 15px;
-  margin-bottom: 5px;
+.project-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.project-header-left {
   display: flex;
   align-items: center;
   gap: 8px;
+  min-width: 0;
+}
+.project-name {
+  font-weight: 600;
+  font-size: 15px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .badge {
   font-size: 11px;
@@ -404,26 +413,151 @@ input:read-only { opacity: 0.5; cursor: default; }
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.3px;
+  flex-shrink: 0;
 }
 .badge-running { background: var(--green-dim); color: var(--green); }
 .badge-stopped { background: var(--red-dim); color: var(--red); }
-.project-details {
-  font-size: 12px;
-  color: var(--text2);
-  display: flex;
-  gap: 16px;
-  flex-wrap: wrap;
-}
-.project-details a {
-  color: var(--accent);
-  text-decoration: none;
-}
-.project-details a:hover { text-decoration: underline; }
-.project-actions {
+.project-header-actions {
   display: flex;
   gap: 6px;
   flex-shrink: 0;
 }
+.project-dir {
+  font-size: 12px;
+  color: var(--text3);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-top: -6px;
+}
+.info-rows {
+  display: flex;
+  flex-direction: column;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+.info-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+}
+.info-row + .info-row { border-top: 1px solid var(--border); }
+.info-row-icon {
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.info-row-icon svg { width: 18px; height: 18px; }
+.info-row-icon.web { background: var(--accent-dim); color: var(--accent); }
+.info-row-icon.tunnel { background: var(--green-dim); color: var(--green); }
+.info-row-icon.db { background: rgba(168,85,247,0.12); color: #a855f7; }
+.info-row-content {
+  flex: 1;
+  min-width: 0;
+}
+.info-row-label {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text3);
+  margin-bottom: 2px;
+}
+.info-row-value {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.info-row-value a {
+  color: var(--accent);
+  text-decoration: none;
+}
+.info-row-value a:hover { text-decoration: underline; }
+.info-row-sub {
+  font-size: 11px;
+  color: var(--text3);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-top: 1px;
+}
+.info-row-actions {
+  display: flex;
+  gap: 5px;
+  flex-shrink: 0;
+}
+.info-row-actions .btn { font-size: 11px; padding: 4px 10px; }
+/* DB credentials detail */
+.info-row.db-row {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 10px;
+}
+.db-row-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.db-creds {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  padding: 6px 14px;
+  background: var(--surface);
+  border-radius: 6px;
+  border: 1px solid var(--border);
+}
+.db-cred {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 12px;
+  padding: 3px 0;
+}
+.db-cred-label {
+  color: var(--text3);
+  font-weight: 600;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  min-width: 52px;
+  flex-shrink: 0;
+}
+.db-cred-value {
+  color: var(--text);
+  font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace;
+  font-size: 12px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.db-row-actions {
+  display: flex;
+  gap: 5px;
+  justify-content: flex-end;
+}
+.db-row-actions .btn { font-size: 11px; padding: 4px 10px; }
+.project-footer {
+  display: flex;
+  gap: 6px;
+  justify-content: flex-end;
+}
+.btn-icon {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.btn-icon svg { width: 14px; height: 14px; flex-shrink: 0; }
 .empty-state {
   text-align: center;
   padding: 48px 24px;
@@ -787,8 +921,10 @@ input:read-only { opacity: 0.5; cursor: default; }
   .sidebar.open { transform: translateX(0); }
   .main-wrapper { margin-left: 0; }
   .form-row { grid-template-columns: 1fr; }
-  .project-card { flex-direction: column; align-items: stretch; }
-  .project-actions { justify-content: flex-end; }
+  .project-header { flex-direction: column; align-items: flex-start; gap: 8px; }
+  .project-header-actions { width: 100%; justify-content: flex-end; }
+  .info-row { flex-wrap: wrap; }
+  .info-row-actions { width: 100%; justify-content: flex-end; }
 }
 </style>
 </head>
@@ -1395,34 +1531,97 @@ function renderProjectCard(p) {
     : '<span class="badge badge-stopped">Stopped</span>';
   const acaiBadge = p.acai ? ' <span class="badge-acai">Acai</span>' : '';
 
-  const webLink = p.web_url
-    ? `<span>Web: <a href="${p.web_url}" target="_blank">${p.web_url}</a></span>`
-    : '';
-  const httpsLink = p.https_url
-    ? `<span>SSL: <a href="${p.https_url}" target="_blank">${p.https_url}</a></span>`
-    : '';
-  const dbInfo = p.db_port ? `<span>DB: localhost:${p.db_port}</span>` : '';
-  const dirInfo = p.project_dir ? `<span>Dir: ${p.project_dir}</span>` : '';
-
   const webContainer = p.containers.find(c => c.name.endsWith('-web'));
   const webContainerName = webContainer ? webContainer.name : '';
 
-  return `
-    <div class="project-card">
-      <div class="project-info">
-        <div class="project-name">${escapeHtml(p.name)} ${statusBadge}${acaiBadge}</div>
-        <div class="project-details">
-          ${httpsLink} ${dbInfo} ${dirInfo}
+  // Info rows
+  const webRow = p.https_url ? `
+    <div class="info-row">
+      <div class="info-row-icon web"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 12m-9 0a9 9 0 1 0 18 0a9 9 0 1 0 -18 0"/><path d="M12 12m-3 0a3 3 0 1 0 6 0a3 3 0 1 0 -6 0"/><path d="M12 9h8.4"/><path d="M14.598 13.5l-4.2 7.275"/><path d="M9.402 13.5l-4.2 -7.275"/></svg></div>
+      <div class="info-row-content">
+        <div class="info-row-label">Web local</div>
+        <div class="info-row-value"><a href="${escapeAttr(p.https_url)}" target="_blank">${escapeHtml(p.https_url.replace('https://', ''))}</a></div>
+        ${p.project_dir ? `<div class="info-row-sub">${escapeHtml(p.project_dir)}</div>` : ''}
+      </div>
+    </div>` : '';
+
+  const tunnelRow = p.tunnel_url ? `
+    <div class="info-row">
+      <div class="info-row-icon tunnel"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 12m-9 0a9 9 0 1 0 18 0a9 9 0 1 0 -18 0"/><path d="M12 12m-3 0a3 3 0 1 0 6 0a3 3 0 1 0 -6 0"/><path d="M12 9h8.4"/><path d="M14.598 13.5l-4.2 7.275"/><path d="M9.402 13.5l-4.2 -7.275"/></svg></div>
+      <div class="info-row-content">
+        <div class="info-row-label">Tunnel público</div>
+        <div class="info-row-value"><a href="${escapeAttr(p.tunnel_url)}" target="_blank">${escapeHtml(p.tunnel_url.replace('https://', ''))}</a></div>
+      </div>
+      <div class="info-row-actions">
+        <button class="btn btn-secondary btn-sm" onclick="navigator.clipboard.writeText('${escapeAttr(p.tunnel_url)}')">Copiar</button>
+      </div>
+    </div>` : '';
+
+  const dbCreds = [];
+  if (p.db_port) dbCreds.push({label: 'Host', value: `localhost:${p.db_port}`});
+  if (p.bore_db_url) dbCreds.push({label: 'Tunnel', value: p.bore_db_url});
+  if (p.db_name) dbCreds.push({label: 'Base', value: p.db_name});
+  if (p.db_user) dbCreds.push({label: 'Usuario', value: p.db_user});
+  if (p.db_pass) dbCreds.push({label: 'Pass', value: p.db_pass});
+
+  const dbRow = p.db_port ? `
+    <div class="info-row db-row">
+      <div class="db-row-header">
+        <div class="info-row-icon db"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 6m-8 0a8 3 0 1 0 16 0a8 3 0 1 0 -16 0"/><path d="M4 6v6a8 3 0 0 0 16 0v-6"/><path d="M4 12v6a8 3 0 0 0 16 0v-6"/></svg></div>
+        <div class="info-row-content">
+          <div class="info-row-label">Base de datos</div>
+          <div class="info-row-value">MySQL — localhost:${escapeHtml(String(p.db_port))}</div>
         </div>
       </div>
-      <div class="project-actions">
-        ${p.https_url ? `<button class="btn btn-primary btn-sm" onclick="window.open('${p.https_url}', '_blank')">Abrir</button>` : ''}
-        ${p.https_url ? `<button class="btn btn-primary btn-sm" onclick="window.open('${p.https_url}/cmsAdmin/admin.php', '_blank')">CMS</button>` : ''}
-        ${webContainerName ? `<button class="btn btn-secondary btn-sm" onclick="showLogs('${escapeHtml(webContainerName)}')">Logs</button>` : ''}
-        <button class="btn btn-warning btn-sm" onclick="confirmAction('stop', '${escapeAttr(p.project_dir)}', '${escapeHtml(p.name)}')">Parar</button>
-        <button class="btn btn-danger btn-sm" onclick="confirmAction('destroy', '${escapeAttr(p.project_dir)}', '${escapeHtml(p.name)}')">Destruir</button>
+      <div class="db-creds">
+        ${dbCreds.map(c => `<div class="db-cred"><span class="db-cred-label">${escapeHtml(c.label)}</span><span class="db-cred-value">${escapeHtml(c.value)}</span></div>`).join('')}
+      </div>
+      <div class="db-row-actions">
+        ${p.bore_db_url ? `<button class="btn btn-secondary btn-sm" onclick="navigator.clipboard.writeText('${escapeAttr(p.bore_db_url)}')">Copiar tunnel</button>` : ''}
+        <button class="btn btn-secondary btn-sm" onclick="navigator.clipboard.writeText('${escapeAttr(dbCreds.map(c => `${c.label}: ${c.value}`).join('\\n'))}')">Copiar todo</button>
+      </div>
+    </div>` : '';
+
+  const hasInfoRows = webRow || tunnelRow || dbRow;
+
+  return `
+    <div class="project-card">
+      <div class="project-header">
+        <div class="project-header-left">
+          <span class="project-name">${escapeHtml(p.name)}</span>
+          ${statusBadge}${acaiBadge}
+        </div>
+        <div class="project-header-actions">
+          ${webContainerName ? `<button class="btn btn-secondary btn-sm" onclick="showLogs('${escapeAttr(webContainerName)}')">Logs</button>` : ''}
+          <button class="btn btn-warning btn-sm" onclick="confirmAction('stop', '${escapeAttr(p.project_dir)}', '${escapeHtml(p.name)}')">Parar</button>
+          <button class="btn btn-danger btn-sm" onclick="confirmAction('destroy', '${escapeAttr(p.project_dir)}', '${escapeHtml(p.name)}')">Destruir</button>
+        </div>
+      </div>
+      ${hasInfoRows ? `<div class="info-rows">${webRow}${tunnelRow}${dbRow}</div>` : ''}
+      <div class="project-footer">
+        ${p.tunnel_url ? `<button class="btn btn-primary btn-sm btn-icon" onclick="window.open('${escapeAttr(p.tunnel_url)}', '_blank')"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 12m-9 0a9 9 0 1 0 18 0a9 9 0 1 0 -18 0"/><path d="M12 12m-3 0a3 3 0 1 0 6 0a3 3 0 1 0 -6 0"/><path d="M12 9h8.4"/><path d="M14.598 13.5l-4.2 7.275"/><path d="M9.402 13.5l-4.2 -7.275"/></svg> Abrir</button>` : ''}
+        ${p.project_dir ? `<button class="btn btn-secondary btn-sm btn-icon" onclick="openInVSCode('${escapeAttr(p.project_dir)}')"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M16 3v18l4 -2.5v-13z"/><path d="M9.165 13.903l-4.165 3.597l-2 -1l4.333 -4.5m1.735 -1.802l6.932 -7.198v5l-4.795 4.141"/><path d="M16 16.5l-11 -10l-2 1l13 13.5"/></svg> VSCode</button>` : ''}
+        ${p.tunnel_url && p.acai_domain ? `<button class="btn btn-secondary btn-sm btn-icon" onclick="openCmsAdmin('${p.acai_token || ''}', '${p.acai_domain}', '${p.tunnel_url}', '${p.db_user || ''}', '${p.db_pass || ''}', '${p.db_name || ''}', '${p.bore_db_url || ''}')"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 5m0 2a2 2 0 0 1 2 -2h14a2 2 0 0 1 2 2v10a2 2 0 0 1 -2 2h-14a2 2 0 0 1 -2 -2z"/><path d="M7 15v-4a2 2 0 0 1 4 0v4"/><path d="M7 13l4 0"/><path d="M17 9v6h-1.5a1.5 1.5 0 1 1 1.5 -1.5"/></svg> CMS</button>` : ''}
       </div>
     </div>`;
+}
+
+// ---- CMS Admin ----
+function openCmsAdmin(token, domain, tunnelUrl, dbUser, dbPass, dbName, boreDbUrl) {
+  const params = new URLSearchParams({
+    ACAI_TOKEN: token,
+    localPrimaryDomain: domain,
+    localOverrideDomain: tunnelUrl,
+    localDbUser: dbUser,
+    localDbPass: dbPass,
+    localDbName: dbName,
+  });
+  if (boreDbUrl) {
+    const parts = boreDbUrl.split(':');
+    params.set('localDbHost', parts[0]);
+    if (parts[1]) params.set('localDbPort', parts[1]);
+  }
+  window.open('https://cms.cocosolution.com/admin.php?' + params.toString(), '_blank');
 }
 
 // ---- Logs ----
@@ -1592,12 +1791,49 @@ function switchTab(tab, el) {
 }
 
 // ---- Launch ----
+async function stopRunningProject(runningProject) {
+  return api('/api/stop', {
+    method: 'POST',
+    body: JSON.stringify({ project_dir: runningProject.project_dir }),
+  });
+}
+
+function checkRunningProject(projects, currentDir) {
+  if (!projects || projects.length === 0) return null;
+  const running = projects.find(p => p.status === 'running' && p.project_dir !== currentDir);
+  return running || null;
+}
+
 async function launchProject() {
   const projectDir = document.getElementById('projectDir').value;
   if (!projectDir) {
     alert('Selecciona la ruta del proyecto');
     return;
   }
+
+  // Verificar si hay un proyecto corriendo
+  try {
+    const data = await api('/api/projects');
+    const running = checkRunningProject(data.projects, projectDir);
+    if (running) {
+      const confirmed = await new Promise(resolve => {
+        document.getElementById('confirmTitle').textContent = 'Proyecto en ejecucion';
+        document.getElementById('confirmText').textContent =
+          `Ya hay un proyecto corriendo: "${running.name}". ¿Quieres pararlo para levantar el nuevo?`;
+        const btn = document.getElementById('confirmBtn');
+        btn.textContent = 'Parar y continuar';
+        btn.className = 'btn btn-warning';
+        btn.onclick = () => { closeModal('confirmModal'); resolve(true); };
+        const overlay = document.getElementById('confirmModal');
+        const origClick = (e) => { if (e.target === overlay) { overlay.removeEventListener('click', origClick); closeModal('confirmModal'); resolve(false); } };
+        overlay.addEventListener('click', origClick);
+        openModal('confirmModal');
+      });
+      if (!confirmed) return;
+      await stopRunningProject(running);
+      await new Promise(r => setTimeout(r, 1000));
+    }
+  } catch (e) { /* continuar igualmente */ }
 
   const body = { project_dir: projectDir };
 
@@ -1999,6 +2235,31 @@ async function launchAcaiWeb(path, hasDb) {
   }
 
   const btn = event && event.target.closest('.btn');
+
+  // Verificar si hay un proyecto corriendo
+  try {
+    const projData = await api('/api/projects');
+    const running = checkRunningProject(projData.projects, path);
+    if (running) {
+      const confirmed = await new Promise(resolve => {
+        document.getElementById('confirmTitle').textContent = 'Proyecto en ejecucion';
+        document.getElementById('confirmText').textContent =
+          `Ya hay un proyecto corriendo: "${running.name}". ¿Quieres pararlo para levantar el nuevo?`;
+        const confirmBtn = document.getElementById('confirmBtn');
+        confirmBtn.textContent = 'Parar y continuar';
+        confirmBtn.className = 'btn btn-warning';
+        confirmBtn.onclick = () => { closeModal('confirmModal'); resolve(true); };
+        const overlay = document.getElementById('confirmModal');
+        const origClick = (e) => { if (e.target === overlay) { overlay.removeEventListener('click', origClick); closeModal('confirmModal'); resolve(false); } };
+        overlay.addEventListener('click', origClick);
+        openModal('confirmModal');
+      });
+      if (!confirmed) return;
+      await stopRunningProject(running);
+      await new Promise(r => setTimeout(r, 1000));
+    }
+  } catch (e) { /* continuar igualmente */ }
+
   if (btn) {
     btn.disabled = true;
     btn.innerHTML = '<span class="spinner"></span> Levantando...';

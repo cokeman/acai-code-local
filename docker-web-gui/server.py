@@ -385,6 +385,77 @@ def run_cmd(args, timeout=120, env=None):
         return 1, "", str(e)
 
 
+def refresh_acai_token(acai_file):
+    """Re-authenticate with Acai and update token in .acai file.
+
+    Uses stored credentials (config username + Keychain password) and the
+    domain info already present in the .acai marker to obtain a fresh token.
+    Returns (token, error_msg).
+    """
+    try:
+        with open(str(acai_file), "r", encoding="utf-8") as f:
+            acai_data = json.load(f)
+    except Exception as e:
+        return "", "Error leyendo .acai: {}".format(e)
+
+    domain_name = acai_data.get("domain", "")
+    if not domain_name:
+        return "", "Sin dominio en .acai"
+
+    config = load_config()
+    username = config.get("acai_username", "")
+    password = keychain_get("acai")
+    if not username or not password:
+        return acai_data.get("token", ""), ""  # No credentials, keep existing token
+
+    # Step 1: SimpleAuth
+    creds = base64.b64encode("{}:{}".format(username, password).encode()).decode()
+    result = acai_request("SimpleAuth {}".format(creds))
+    if not result.get("success") and not result.get("data"):
+        return "", "Auth fallido: {}".format(result.get("error", ""))
+
+    data = result.get("data", {})
+    session_hash = data.get("hash", "")
+    domains = data.get("domains", [])
+
+    # Find matching domain num
+    domain_num = ""
+    for d in domains:
+        if isinstance(d, dict) and d.get("domain") == domain_name:
+            domain_num = str(d.get("num", ""))
+            break
+
+    if not domain_num:
+        return "", "Dominio '{}' no encontrado en la cuenta".format(domain_name)
+
+    # Step 2: Login with domain
+    creds2 = base64.b64encode("{}:{}:{}".format(
+        username, session_hash, domain_num
+    ).encode()).decode()
+    result2 = acai_request("Login {}".format(creds2))
+    if not result2.get("success") and not result2.get("data"):
+        return "", "Login fallido: {}".format(result2.get("error", ""))
+
+    data2 = result2.get("data", {})
+    token = data2.get("token", data2.get("renewToken", ""))
+    token_hash = data2.get("tokenHash", "")
+
+    if not token:
+        return "", "No se obtuvo token"
+
+    # Update .acai file
+    acai_data["token"] = token
+    acai_data["tokenHash"] = token_hash
+    acai_data["token_updated"] = time.time()
+    try:
+        with open(str(acai_file), "w", encoding="utf-8") as f:
+            json.dump(acai_data, f, ensure_ascii=False, indent=2)
+    except Exception as e:
+        return token, "Token obtenido pero error guardando: {}".format(e)
+
+    return token, ""
+
+
 def _docker_web_env():
     """Build env dict for docker-web.sh with WEB_BASE_DIR set."""
     env = dict(os.environ)
@@ -486,16 +557,59 @@ def get_projects():
         else:
             proj_data["acai"] = False
 
-        # Read acai_domain from .acai file
+        # Read tunnel URL
+        if pdir:
+            tunnel_file = Path(pdir) / ".docker" / "tunnel-url.txt"
+            try:
+                tunnel_url = tunnel_file.read_text(encoding="utf-8").strip() if tunnel_file.is_file() else ""
+            except Exception:
+                tunnel_url = ""
+            proj_data["tunnel_url"] = tunnel_url
+        else:
+            proj_data["tunnel_url"] = ""
+
+        # Read bore DB tunnel URL
+        if pdir:
+            bore_file = Path(pdir) / ".docker" / "bore-db-url.txt"
+            try:
+                bore_db_url = bore_file.read_text(encoding="utf-8").strip() if bore_file.is_file() else ""
+            except Exception:
+                bore_db_url = ""
+            proj_data["bore_db_url"] = bore_db_url
+        else:
+            proj_data["bore_db_url"] = ""
+
+        # Read DB credentials from .docker/.env
+        proj_data["db_user"] = ""
+        proj_data["db_pass"] = ""
+        proj_data["db_name"] = ""
+        if pdir:
+            env_file = Path(pdir) / ".docker" / ".env"
+            if env_file.is_file():
+                try:
+                    for line in env_file.read_text(encoding="utf-8").splitlines():
+                        if line.startswith("DB_USERNAME="):
+                            proj_data["db_user"] = line.split("=", 1)[1]
+                        elif line.startswith("DB_PASSWORD="):
+                            proj_data["db_pass"] = line.split("=", 1)[1]
+                        elif line.startswith("DB_DATABASE="):
+                            proj_data["db_name"] = line.split("=", 1)[1]
+                except Exception:
+                    pass
+
+        # Read acai_domain and token from .acai file
         if proj_data["acai"] and pdir:
             try:
                 with open(str(Path(pdir) / ".acai"), "r", encoding="utf-8") as f:
                     acai_data = json.load(f)
                 proj_data["acai_domain"] = acai_data.get("domain", "")
+                proj_data["acai_token"] = acai_data.get("token", "")
             except Exception:
                 proj_data["acai_domain"] = ""
+                proj_data["acai_token"] = ""
         else:
             proj_data["acai_domain"] = ""
+            proj_data["acai_token"] = ""
 
     return list(projects.values())
 
@@ -774,8 +888,19 @@ class Handler(http.server.BaseHTTPRequestHandler):
         args.append("--rebuild")
 
         # Acai mode
-        if body.get("acai") or (Path(path) / ".acai").exists():
+        acai_file = Path(path) / ".acai"
+        is_acai = body.get("acai") or acai_file.exists()
+        if is_acai:
             args.append("--acai")
+
+        # Refresh Acai token if credentials available
+        token_msg = ""
+        if is_acai and acai_file.exists():
+            token, token_err = refresh_acai_token(acai_file)
+            if token_err:
+                token_msg = "[acai] Token no renovado: {}\n".format(token_err)
+            elif token:
+                token_msg = "[acai] Token renovado correctamente\n"
 
         # Ejecutar con timeout largo para builds
         rc, out, err = run_cmd(args, timeout=300, env=_docker_web_env())
@@ -785,7 +910,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
 
         self.send_json({
             "success": rc == 0,
-            "output": clean_out,
+            "output": token_msg + clean_out,
             "returncode": rc,
         })
 
@@ -1193,6 +1318,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
             marker_data = {
                 "domain": domain,
                 "ssl": ssl_enabled,
+                "token": token,
+                "tokenHash": token_hash,
                 "timestamp": time.time(),
             }
             with open(str(acai_marker), "w", encoding="utf-8") as f:
