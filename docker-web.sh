@@ -328,7 +328,7 @@ RUN ARCH=\$(dpkg --print-architecture) && \\
 # Bore para tunel TCP de la BD
 RUN ARCH=\$(dpkg --print-architecture) && \\
     if [ "\$ARCH" = "amd64" ]; then BORE_ARCH="x86_64"; else BORE_ARCH="aarch64"; fi && \\
-    curl -L "https://github.com/ekzhang/bore/releases/download/v0.5.2/bore-v0.5.2-\${BORE_ARCH}-unknown-linux-musl.tar.gz" \\
+    curl -L "https://github.com/ekzhang/bore/releases/download/v0.6.0/bore-v0.6.0-\${BORE_ARCH}-unknown-linux-musl.tar.gz" \\
     -o /tmp/bore.tar.gz && \\
     tar -xzf /tmp/bore.tar.gz -C /usr/local/bin/ && \\
     chmod +x /usr/local/bin/bore && \\
@@ -402,14 +402,14 @@ BORE_URL_FILE="/tunnel-url/bore-db-url.txt"
 echo "" > "$BORE_URL_FILE"
 
 BORE_LOG="/tmp/bore.log"
-bore local 3306 --local-host db --to bore.pub > "$BORE_LOG" 2>&1 &
+bore local 3306 --local-host db --to 46.101.52.52 > "$BORE_LOG" 2>&1 &
 
 # Esperar a que bore escriba la URL (max 15s)
 (
     for i in $(seq 1 30); do
         sleep 0.5
         if [ -f "$BORE_LOG" ]; then
-            addr=$(sed 's/\x1b\[[0-9;]*m//g' "$BORE_LOG" | grep -oE 'bore\.pub:[0-9]+' | head -1)
+            addr=$(sed 's/\x1b\[[0-9;]*m//g' "$BORE_LOG" | grep -oE '46\.101\.52\.52:[0-9]+' | head -1)
             if [ -n "$addr" ]; then
                 echo "$addr" > "$BORE_URL_FILE"
                 echo "[bore] DB tunnel: $addr"
@@ -436,13 +436,14 @@ if $ACAI_MODE; then
         err "web-base no encontrada en $WEB_BASE_DIR"
         exit 1
     fi
-    mkdir -p "$PROJECT_DIR/modulos" "$PROJECT_DIR/hooks" "$PROJECT_DIR/uploads"
+    mkdir -p "$PROJECT_DIR/modulos" "$PROJECT_DIR/hooks" "$PROJECT_DIR/uploads" "$PROJECT_DIR/plugins"
     WEB_VOLUMES="      - ${WEB_BASE_DIR}:/var/www/html
       - ${WEB_BASE_DIR}:/web-base-src:ro
       - ./init.sh:/docker-entrypoint-init.d/init.sh
       - ${PROJECT_DIR}/modulos:/var/www/html/template/estandar/modulos
       - ${PROJECT_DIR}/hooks:/var/www/html/hooks
-      - ${PROJECT_DIR}/uploads:/var/www/html/cms/uploads"
+      - ${PROJECT_DIR}/uploads:/var/www/html/cms/uploads
+      - ${PROJECT_DIR}/plugins:/var/www/html/cms/lib/plugins"
     # Layout
     [[ -f "$PROJECT_DIR/layout.json" ]] && WEB_VOLUMES+="
       - ${PROJECT_DIR}/layout.json:/var/www/html/cms/lib/plugins/builder_saas/layout.json"
