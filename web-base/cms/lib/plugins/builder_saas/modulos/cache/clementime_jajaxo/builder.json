@@ -1,0 +1,1 @@
+{"label":"Clementime ","description":"Modulo de inserci\u00f3n de clementime","notParseComponents":"2","onlyAdminModule":false,"MJMLModule":false,"wrapper":"index.tpl","thumbnail":"thumbnail.jpg","tables":["builder_custom"],"vars":{"nombreModulo":{"type":"textfield","label":"Nombre del m\u00f3dulo","relations":{"builder_custom":"title1"}}},"editable":true}

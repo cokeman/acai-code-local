@@ -1,0 +1,68 @@
+<div class="rooms-section" id="habitaciones">
+  <div class="rooms-section__container">
+    <div class="rooms-section__header">
+      
+                            {% set ttuloprincipal_tag = ttuloprincipal_tag ?: 'P' %}
+                            {{ ('<' ~ ttuloprincipal_tag ~ ' >' ~ (ttuloprincipal ? ttuloprincipal : '
+        Rooms we offer
+      ') ~ ('PC8=' | base64_decode) ~ ttuloprincipal_tag ~ '>') | raw }}
+                        
+      <p>
+                        {% if descripcin %} 
+ 
+                            {% if descripcin | isHTML %}
+                                {{ descripcin | raw }} 
+ 
+                            {% else %}
+                                {{ descripcin | nl2br }} 
+ 
+                            {% endif %}
+                        {% else %} 
+ 
+                            {{ "
+        Choose from our selection of carefully designed accommodations, each offering unique amenities and breathtaking views to make your stay unforgettable.
+      " | nl2br }} 
+ 
+                        {% endif %}
+                    </p>
+    </div>
+
+    <div class="rooms-section__grid">
+      <!-- Room Card from Database -->
+      
+ {% for record in habitaciones without prefix 'cms_' %} 
+<div class="rooms-section__card">
+        <div class="rooms-section__card-image">
+          <img src="{{ record.imagen[0].urlPath | imagec(800) }}" alt="{{ record.nombre }}">
+          <div class="rooms-section__card-badge">
+            <span>Available</span>
+          </div>
+        </div>
+        <div class="rooms-section__card-content">
+          <h3>{{ record.nombre }}</h3>
+          <p>{{ record.descripcion }}</p>
+          <div class="rooms-section__card-price">
+            <span>{{ record.precio }}</span>
+          </div>
+          <div class="rooms-section__card-amenities">
+            {% for amenidad in record.amenidades | split('\n') %}
+            {% if amenidad %}
+            <div class="rooms-section__amenity">
+              <svg viewBox="0 0 24 24" fill="currentColor">
+                <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"></path>
+              </svg>
+              <span>{{ amenidad }}</span>
+            </div>
+            {% endif %}
+            {% endfor %}
+          </div>
+          <a href="#reservas" class="rooms-section__card-button">
+            <span>Book Now</span>
+          </a>
+        </div>
+      </div>
+ {% endfor %} 
+
+    </div>
+  </div>
+</div>

@@ -1,0 +1,1 @@
+{"label":"Otros \/ Control de stock App","description":"Control de stock App","notParseComponents":"1","onlyAdminModule":true,"requiredPlugins":"","MJMLModule":false,"wrapper":"index.tpl","thumbnail":"thumbnail.jpg","tables":["builder_custom"],"vars":{"nombreModulo":{"type":"textfield","label":"Nombre del m\u00f3dulo","relations":{"builder_custom":"title1"}}},"editable":true}

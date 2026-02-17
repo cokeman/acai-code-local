@@ -1,0 +1,112 @@
+<section class="hero-creative-visual relative isolate overflow-hidden bg-black text-white">
+  <!-- Variables ocultas para editor -->
+  
+
+  <div class="hero-creative-visual__container relative mx-auto grid max-w-6xl grid-cols-12 gap-6 px-6 py-12 lg:py-16">
+    <!-- Lateral izquierdo -->
+    <div class="hero-creative-visual__rail-left pointer-events-none absolute left-4 top-1/2 hidden -translate-y-1/2 items-center gap-3 text-xs tracking-[0.2em] text-gray-400 lg:flex">
+      <div class="hero-creative-visual__line-vert h-24 w-px bg-gray-600"></div>
+      <div class="hero-creative-visual__scroll flex flex-col items-center gap-3">
+        <span class="hero-creative-visual__phone rotate-180 origin-center writing-vertical">{{ telefono }}</span>
+        <div class="hero-creative-visual__arrow flex flex-col items-center text-gray-500">
+          <span class="hero-creative-visual__arrow-head text-xl leading-none">↧</span>
+          <span class="hero-creative-visual__scroll-label writing-vertical">{{ etiquetascroll }}</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Lateral derecho -->
+    <div class="hero-creative-visual__rail-right pointer-events-none absolute right-4 top-1/2 hidden -translate-y-1/2 items-center gap-3 text-xs tracking-[0.2em] text-gray-400 lg:flex">
+      <div class="hero-creative-visual__arrow flex flex-col items-center text-gray-500">
+        <span class="hero-creative-visual__arrow-head text-xl leading-none">↥</span>
+        <span class="hero-creative-visual__follow-label writing-vertical">{{ etiquetafollow }}</span>
+      </div>
+      <div class="hero-creative-visual__line-vert h-24 w-px bg-gray-600"></div>
+    </div>
+
+    <!-- Texto superior -->
+    <div class="hero-creative-visual__availability col-span-12 flex items-center justify-start gap-3 lg:col-span-6">
+      <div class="h-px w-14 bg-gray-600"></div>
+      <div class="space-y-1 text-sm leading-tight text-gray-200">
+        <div class="font-semibold">{{ disponibilidadtexto }}</div>
+        <div class="flex items-center gap-2 text-gray-400">
+          <span>{{ disponibilidadubicacion }}</span>
+          <a class="inline-flex items-center gap-1 text-gray-200 transition hover:text-lime-300" href="{{ disponibilidadlink }}">
+            <span class="text-xs">↗</span>
+          </a>
+        </div>
+      </div>
+    </div>
+
+    <!-- Hero principal -->
+    <div class="hero-creative-visual__content col-span-12 grid grid-cols-12 items-center gap-6 lg:col-span-12">
+      <div class="hero-creative-visual__copy col-span-12 lg:col-span-7 xl:col-span-6">
+        <h1 class="hero-creative-visual__title font-black leading-tight text-white">
+          <span class="block text-4xl sm:text-5xl lg:text-6xl">{{ titulolinea1 }}</span>
+          <span class="block text-4xl sm:text-5xl lg:text-6xl text-lime-300">{{ titulolinea2 }}</span>
+        </h1>
+        <div class="hero-creative-visual__cta mt-8 flex items-center gap-4">
+          <button class="hero-creative-visual__play-btn relative flex h-16 w-16 items-center justify-center rounded-full border border-white/60 text-white transition hover:-translate-y-0.5 hover:border-lime-300 hover:text-lime-300">
+            <span class="hero-creative-visual__play-icon text-2xl">▶</span>
+          </button>
+          <div class="text-sm font-medium uppercase tracking-[0.2em] text-gray-200">{{ etiquetacta }}</div>
+        </div>
+      </div>
+      <div class="hero-creative-visual__visual col-span-12 relative flex justify-center lg:col-span-5 xl:col-span-6">
+        <div class="hero-creative-visual__swirl absolute inset-4"></div>
+        <div class="hero-creative-visual__photo relative z-10 w-72 sm:w-80 md:w-96">
+          <img src="{{ retrato.0.urlPath | imagec(1200) }}" alt="Retrato creativo" class="block w-full object-cover">
+        </div>
+        <div class="hero-creative-visual__socials absolute right-2 top-1/2 flex -translate-y-1/2 flex-col items-center gap-3">
+          
+ {% for item in socials %} 
+<a class="hero-creative-visual__social-item flex h-9 w-9 items-center justify-center rounded-full bg-white/10 text-white transition hover:bg-lime-300 hover:text-black" href="{{ item.enlace }}" target="_blank" rel="noopener">
+            
+{% if item.icono = 'dribbble' %}
+<span aria-hidden="true"></span>
+{% endif %}
+
+            
+{% if item.icono = 'twitter' %}
+<span aria-hidden="true"></span>
+{% endif %}
+
+            
+{% if item.icono = 'linkedin' %}
+<span aria-hidden="true"></span>
+{% endif %}
+
+            
+{% if item.icono = 'behance' %}
+<span aria-hidden="true"></span>
+{% endif %}
+
+            
+{% if item.icono = 'pinterest' %}
+<span aria-hidden="true"></span>
+{% endif %}
+
+            
+{% if item.icono = 'facebook' %}
+<span aria-hidden="true"></span>
+{% endif %}
+
+          </a>
+ {% endfor %} 
+
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Marquee inferior -->
+  <div class="hero-creative-visual__marquee bg-lime-300 py-3 text-black">
+    <div class="hero-creative-visual__marquee-track flex items-center gap-8 font-semibold uppercase tracking-wide" aria-hidden="true">
+      
+ {% for badge in badges %} 
+<div class="hero-creative-visual__marquee-item">{{ badge.texto }}</div>
+ {% endfor %} 
+
+    </div>
+  </div>
+</section>

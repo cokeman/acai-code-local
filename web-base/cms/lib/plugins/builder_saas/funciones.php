@@ -179,7 +179,7 @@ function loadMyDataConfig(){
 function saveLibrarie($path = null,$data){
     if (!$path) $path = "template/estandar/modulos";
     global $TABLE_PREFIX;
-    
+
     $result = array("result" => 0);
     $ds = DIRECTORY_SEPARATOR;
     $pathAux = $path;
@@ -192,7 +192,7 @@ function saveLibrarie($path = null,$data){
         'action_ws' => 'saveLibrarie'
     ];
     $result = API::sendToWeb($send,"POST");
-    
+
     return @$result;
 }
 function saveTableData($data){

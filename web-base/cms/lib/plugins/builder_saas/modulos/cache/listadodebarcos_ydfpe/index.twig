@@ -1,0 +1,74 @@
+<div class="bg-gray-50 py-12">
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+    <div class="text-center mb-12">
+      <h1 class="text-4xl font-bold text-gray-900 mb-4">Nuestra Flota de Barcos</h1>
+      <p class="text-xl text-gray-600">Descubre nuestras embarcaciones disponibles</p>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+      {% for record in queryDB('barcos').fetch() %}
+        <div class="bg-white rounded-lg shadow-lg overflow-hidden hover:shadow-xl transition-shadow duration-300">
+          <!-- Imagen del Barco -->
+          <div class="relative h-64 bg-gray-200 overflow-hidden">
+            {% if record.imagendestacada %}
+              <img src="{{ record.imagendestacada[0].urlPath | imagec(400) }}" alt="{{ record.nombre }}" class="w-full h-full object-cover hover:scale-105 transition-transform duration-300">
+            {% else %}
+              <div class="w-full h-full bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center">
+                <svg class="w-24 h-24 text-white opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 11l5-5m0 0l5 5m-5-5v12"></path>
+                </svg>
+              </div>
+            {% endif %}
+          </div>
+
+          <!-- Información del Barco -->
+          <div class="p-6">
+            <h3 class="text-2xl font-bold text-gray-900 mb-2">{{ record.nombre }}</h3>
+            
+            {% if record.tipo %}
+              <p class="inline-block bg-blue-100 text-blue-800 text-sm font-semibold px-3 py-1 rounded-full mb-4">
+                {{ record.tipo }}
+              </p>
+            {% endif %}
+
+            <!-- Características -->
+            <div class="grid grid-cols-2 gap-4 mb-6 text-sm">
+              {% if record.capacidad %}
+                <div class="border-l-4 border-blue-500 pl-3">
+                  <p class="text-gray-500 text-xs font-semibold">CAPACIDAD</p>
+                  <p class="text-gray-900 font-bold">{{ record.capacidad }} personas</p>
+                </div>
+              {% endif %}
+              
+              {% if record.eslora %}
+                <div class="border-l-4 border-green-500 pl-3">
+                  <p class="text-gray-500 text-xs font-semibold">ESLORA</p>
+                  <p class="text-gray-900 font-bold">{{ record.eslora }} m</p>
+                </div>
+              {% endif %}
+
+              {% if record.ano %}
+                <div class="border-l-4 border-purple-500 pl-3">
+                  <p class="text-gray-500 text-xs font-semibold">AÑO</p>
+                  <p class="text-gray-900 font-bold">{{ record.ano }}</p>
+                </div>
+              {% endif %}
+            </div>
+
+            <!-- Descripción corta -->
+            {% if record.descripcion %}
+              <p class="text-gray-600 text-sm mb-6 line-clamp-2">{{ record.descripcion | striptags }}</p>
+            {% endif %}
+
+            <!-- Botón Ver Detalles -->
+            {% if record.enlace %}
+              <a href="{{ record.enlace }}" class="inline-block w-full text-center bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg transition-colors duration-200">
+                Ver Ficha Completa
+              </a>
+            {% endif %}
+          </div>
+        </div>
+      {% endfor %}
+    </div>
+  </div>
+</div>

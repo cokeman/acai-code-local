@@ -6,7 +6,6 @@ Stdlib puro, sin dependencias externas.
 
 import base64
 import http.server
-import io
 import json
 import os
 import re
@@ -19,7 +18,6 @@ import threading
 import time
 import urllib.parse
 import urllib.request
-import zipfile
 from pathlib import Path
 
 def _get_script_dir():
@@ -238,6 +236,52 @@ def acai_web_request(domain, ssl_enabled, payload, timeout=30):
             return {"error": "HTTP {}: {}".format(e.code, body[:200])}
     except Exception as e:
         return {"error": str(e)}
+
+
+def _php_block_to_twig(php_code):
+    """Convert a decoded PHP block to its Twig equivalent."""
+    php = php_code.strip()
+    # t_var(t($var,'field')) → {{ var.field | translate }}
+    m = re.match(r'<\?(?:php)?\s+echo\s+t_var\(t\(\$(\w+),\s*[\'"]([^\'"]+)[\'"]\)\);\s*\?>', php)
+    if m:
+        return "{{ " + m.group(1) + "." + m.group(2) + " | translate }}"
+    # func(t($var,'field')) → {{ var.field | func }}
+    m = re.match(r'<\?(?:php)?\s+echo\s+(\w+)\(t\(\$(\w+),\s*[\'"]([^\'"]+)[\'"]\)\);\s*\?>', php)
+    if m:
+        return "{{ " + m.group(2) + "." + m.group(3) + " | " + m.group(1) + " }}"
+    # t($var,'field') → {{ var.field }}
+    m = re.match(r'<\?(?:php)?\s+echo\s+t\(\$(\w+),\s*[\'"]([^\'"]+)[\'"]\);\s*\?>', php)
+    if m:
+        return "{{ " + m.group(1) + "." + m.group(2) + " }}"
+    # t_var('text') → {{ 'text' | translate }}
+    m = re.match(r'<\?(?:php)?\s+echo\s+t_var\([\'"](.+?)[\'"]\);\s*\?>', php)
+    if m:
+        return "{{ '" + m.group(1) + "' | translate }}"
+    # func($var) → {{ var | func }}
+    m = re.match(r'<\?(?:php)?\s+echo\s+(\w+)\(\$(\w+)\);\s*\?>', php)
+    if m:
+        return "{{ " + m.group(2) + " | " + m.group(1) + " }}"
+    # $var → {{ var }}
+    m = re.match(r'<\?(?:php)?\s+echo\s+\$(\w+);\s*\?>', php)
+    if m:
+        return "{{ " + m.group(1) + " }}"
+    # BuilderModule('name',[...]) → <name></name>
+    m = re.match(r'<\?(?:php)?\s+echo\s+BuilderModule\([\'"](\w+)[\'"],\s*\[.*?\]\);\s*\?>', php)
+    if m:
+        return "<" + m.group(1) + "></" + m.group(1) + ">"
+    # Fallback: return decoded PHP as-is
+    return php
+
+
+def _convert_real_to_twig(content):
+    """Replace |*base64*| blocks in real_header/real_footer with Twig equivalents."""
+    def _replace(match):
+        try:
+            decoded = base64.b64decode(match.group(1)).decode("utf-8")
+            return _php_block_to_twig(decoded)
+        except Exception:
+            return match.group(0)
+    return re.sub(r'\|\*([A-Za-z0-9+/=]+)\*\|', _replace, content)
 
 
 def save_hooks_from_api(hooks_data, hooks_dir):
@@ -1120,6 +1164,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return
 
         # Step 2: Get layout data
+        layout_data = None
         try:
             payload = dict(base_payload, action_ws="getLayoutData")
             result = acai_web_request(domain, ssl_enabled, payload, timeout=30)
@@ -1152,20 +1197,16 @@ class Handler(http.server.BaseHTTPRequestHandler):
         except Exception as e:
             errors.append("Hooks: {}".format(e))
 
-        # Step 4: List modules via getFTPFiles
+        # Step 4: Get all modules via getModuleSchemas (single request)
         modules_count = 0
         module_errors = []
         try:
-            payload = dict(base_payload, action_ws="getFTPFiles", path="template/estandar/modulos/")
-            result = acai_web_request(domain, ssl_enabled, payload, timeout=30)
+            payload = dict(base_payload, action_ws="getModuleSchemas", full=True, twig=True)
+            result = acai_web_request(domain, ssl_enabled, payload, timeout=60)
 
-            # getFTPFiles returns an array of {filename, isDir, extension}
-            if isinstance(result, list):
-                module_names = [
-                    entry["filename"] for entry in result
-                    if entry.get("isDir") and entry["filename"] not in (".", "..")
-                ]
-                steps.append("{} modulos encontrados".format(len(module_names)))
+            modules_data = result.get("modules", {})
+            if isinstance(modules_data, dict) and modules_data:
+                steps.append("{} modulos encontrados".format(len(modules_data)))
 
                 modules_dir = dest / "modulos"
                 # Clean existing modules
@@ -1173,24 +1214,51 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     shutil.rmtree(str(modules_dir))
                 modules_dir.mkdir(parents=True, exist_ok=True)
 
-                # Download each module as ZIP
-                for mod_name in module_names:
-                    try:
-                        dl_payload = dict(base_payload, action_ws="getFullModule", fileName=mod_name)
-                        mod_result = acai_web_request(domain, ssl_enabled, dl_payload, timeout=60)
+                # Fields that are file content, not part of builder.json
+                _file_fields = {
+                    "htmlData", "htmlDataTWIG", "htmlDataParsed",
+                    "styleData", "styleFilename",
+                    "javascriptData", "javascriptFilename",
+                    "hookData", "hookFilename",
+                    "ampHtmlData", "imageData",
+                    "id", "path", "builderVue",
+                }
 
-                        mod_data = mod_result.get("data")
-                        if mod_data and not isinstance(mod_data, dict):
-                            zip_bytes = base64.b64decode(mod_data)
-                            mod_dir = modules_dir / mod_name
-                            mod_dir.mkdir(parents=True, exist_ok=True)
-                            with zipfile.ZipFile(io.BytesIO(zip_bytes), 'r') as zf:
-                                zf.extractall(str(mod_dir))
-                            modules_count += 1
-                        elif isinstance(mod_data, dict) and mod_data.get("noExiste"):
-                            module_errors.append(mod_name)
-                        else:
-                            module_errors.append(mod_name)
+                for mod_key, mod_schema in modules_data.items():
+                    mod_name = mod_key.replace(".tpl", "")
+                    mod_dir = modules_dir / mod_name
+                    try:
+                        mod_dir.mkdir(parents=True, exist_ok=True)
+
+                        # Write builder.json (schema fields only)
+                        schema = {k: v for k, v in mod_schema.items() if k not in _file_fields}
+                        with open(str(mod_dir / "builder.json"), "w", encoding="utf-8") as f:
+                            json.dump(schema, f, ensure_ascii=False, indent=2)
+
+                        # Write template files
+                        if mod_schema.get("htmlData"):
+                            with open(str(mod_dir / "index-base.tpl"), "w", encoding="utf-8") as f:
+                                f.write(mod_schema["htmlData"])
+                        if mod_schema.get("htmlDataTWIG"):
+                            with open(str(mod_dir / "index-twig.tpl"), "w", encoding="utf-8") as f:
+                                f.write(mod_schema["htmlDataTWIG"])
+                        if mod_schema.get("styleData"):
+                            with open(str(mod_dir / "style.css"), "w", encoding="utf-8") as f:
+                                f.write(mod_schema["styleData"])
+                        if mod_schema.get("javascriptData"):
+                            with open(str(mod_dir / "script.js"), "w", encoding="utf-8") as f:
+                                f.write(mod_schema["javascriptData"])
+                        if mod_schema.get("hookData"):
+                            with open(str(mod_dir / "hook.php"), "w", encoding="utf-8") as f:
+                                f.write(mod_schema["hookData"])
+                        if mod_schema.get("ampHtmlData"):
+                            with open(str(mod_dir / "amp-base.tpl"), "w", encoding="utf-8") as f:
+                                f.write(mod_schema["ampHtmlData"])
+                        if mod_schema.get("imageData"):
+                            with open(str(mod_dir / "thumbnail.jpg"), "wb") as f:
+                                f.write(base64.b64decode(mod_schema["imageData"]))
+
+                        modules_count += 1
                     except Exception as e:
                         module_errors.append("{}: {}".format(mod_name, e))
 
@@ -1198,11 +1266,61 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 if module_errors:
                     errors.append("Modulos con error: {}".format(", ".join(str(e) for e in module_errors)))
             elif isinstance(result, dict) and result.get("error"):
-                errors.append("getFTPFiles: {}".format(result.get("message", result.get("error"))))
+                errors.append("getModuleSchemas: {}".format(result.get("error")))
+            else:
+                steps.append("Sin modulos")
         except Exception as e:
             errors.append("Modulos: {}".format(e))
 
-        # Step 5: Uploads (optional, file by file — slow)
+        # Step 4b: Create custom-header and custom-footer from layout data
+        if layout_data:
+            try:
+                modules_dir = dest / "modulos"
+                modules_dir.mkdir(parents=True, exist_ok=True)
+                for name, real_key in [
+                    ("custom-header-twig", "real_header"),
+                    ("custom-footer-twig", "real_footer"),
+                ]:
+                    real_content = layout_data.get(real_key, "")
+                    if real_content:
+                        mod_dir = modules_dir / name
+                        mod_dir.mkdir(parents=True, exist_ok=True)
+                        converted = _convert_real_to_twig(real_content)
+                        with open(str(mod_dir / "index-base.tpl"), "w", encoding="utf-8") as f:
+                            f.write(converted)
+                steps.append("custom-header y custom-footer creados")
+            except Exception as e:
+                errors.append("Header/Footer: {}".format(e))
+
+        # Step 5: Get general sections (custom-* modules)
+        general_count = 0
+        try:
+            payload = dict(base_payload, action_ws="getGeneralSections")
+            result = acai_web_request(domain, ssl_enabled, payload, timeout=30)
+            sections = result.get("modules", {})
+            if isinstance(sections, dict) and sections:
+                modules_dir = dest / "modulos"
+                modules_dir.mkdir(parents=True, exist_ok=True)
+                for mod_name, mod_data in sections.items():
+                    try:
+                        html = mod_data.get("htmlData", "") if isinstance(mod_data, dict) else ""
+                        if html:
+                            mod_dir = modules_dir / mod_name
+                            mod_dir.mkdir(parents=True, exist_ok=True)
+                            with open(str(mod_dir / "index-base.tpl"), "w", encoding="utf-8") as f:
+                                f.write(html)
+                            twig = mod_data.get("twigData", "")
+                            if twig:
+                                with open(str(mod_dir / "index-twig.tpl"), "w", encoding="utf-8") as f:
+                                    f.write(twig)
+                            general_count += 1
+                    except Exception as e:
+                        errors.append("General {}: {}".format(mod_name, e))
+                steps.append("{} secciones generales descargadas".format(general_count))
+        except Exception as e:
+            errors.append("General sections: {}".format(e))
+
+        # Step 6: Uploads (optional, file by file — slow)
         uploads_count = 0
         if include_uploads:
             try:
@@ -1229,7 +1347,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
             except Exception as e:
                 errors.append("Uploads: {}".format(e))
 
-        # Step 6: Mysqldump (optional, if db_password provided)
+        # Step 7: Mysqldump (optional, if db_password provided)
         has_db = False
         db_password = body.get("db_password", "")
         if db_password:
@@ -1339,19 +1457,111 @@ def _scan_modules_mtimes(projects):
     return mtimes
 
 
-def _on_module_changed(changed_files):
-    """Log detected module file changes. Sync logic will be added later."""
+def _read_module_files(mod_dir):
+    """Read all files from a module directory and return the payload for generateModuleFromString."""
+    mod_name = mod_dir.name
+    payload = {"id": mod_name, "editMode": True}
+
+    index_base = mod_dir / "index-base.tpl"
+    if index_base.is_file():
+        payload["html"] = index_base.read_text(encoding="utf-8", errors="replace")
+
+    index_tpl = mod_dir / "index.tpl"
+    if index_tpl.is_file():
+        payload["htmlParsed"] = index_tpl.read_text(encoding="utf-8", errors="replace")
+    elif "html" in payload:
+        payload["htmlParsed"] = payload["html"]
+
+    style = mod_dir / "style.css"
+    if style.is_file():
+        payload["style"] = style.read_text(encoding="utf-8", errors="replace")
+
+    script = mod_dir / "script.js"
+    if script.is_file():
+        payload["javascript"] = script.read_text(encoding="utf-8", errors="replace")
+
+    hook = mod_dir / "hook.php"
+    if hook.is_file():
+        payload["hook"] = hook.read_text(encoding="utf-8", errors="replace")
+
+    builder = mod_dir / "builder.json"
+    if builder.is_file():
+        try:
+            config = json.loads(builder.read_text(encoding="utf-8", errors="replace"))
+            payload["notParseComponents"] = config.get("notParseComponents", "0")
+            payload["label"] = config.get("label", mod_name)
+            payload["description"] = config.get("description", "")
+        except json.JSONDecodeError:
+            pass
+
+    return payload
+
+
+def _sync_module_to_local(mod_dir, web_url):
+    """Send module files to the local Docker container via generateModuleFromString."""
+    mod_name = mod_dir.name
+    payload = _read_module_files(mod_dir)
+    if not payload.get("html") and not payload.get("style"):
+        return
+
+    # Extract port from web_url (e.g. http://localhost:8080)
+    match = re.search(r':(\d+)', web_url)
+    if not match:
+        _watcher_log_add("error", "Sync {}: no port in {}".format(mod_name, web_url))
+        return
+    port = match.group(1)
+    payload["action_ws"] = "generateModuleFromString"
+    url = "http://localhost:{}/cms/lib/viewer_functions.php".format(port)
+
+    try:
+        data = json.dumps(payload).encode()
+        req = urllib.request.Request(
+            url,
+            data=data,
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            result = json.loads(resp.read().decode())
+        if result.get("error"):
+            _watcher_log_add("error", "Sync {}: {}".format(mod_name, result["error"]))
+        else:
+            _watcher_log_add("info", "Synced: {}".format(mod_name))
+    except Exception as e:
+        _watcher_log_add("error", "Sync {}: {}".format(mod_name, e))
+
+
+def _on_module_changed(changed_files, projects):
+    """Detect changed modules and sync them to their local Docker containers."""
+    # Group changed files by module directory
+    changed_modules = {}  # {mod_dir_str: mod_dir_path}
     for filepath in changed_files:
-        # Extract module_name/filename from path
         parts = Path(filepath).parts
         try:
             idx = parts.index("modulos")
-            if idx + 2 < len(parts):
-                _watcher_log_add("info", "Changed: {}/{}".format(parts[idx + 1], parts[idx + 2]))
-            else:
-                _watcher_log_add("info", "Changed: {}".format(Path(filepath).name))
+            if idx + 1 < len(parts):
+                mod_dir = Path(*parts[:idx + 2])
+                changed_modules[str(mod_dir)] = mod_dir
+                _watcher_log_add("info", "Changed: {}/{}".format(
+                    parts[idx + 1], parts[idx + 2] if idx + 2 < len(parts) else ""))
         except ValueError:
             _watcher_log_add("info", "Changed: {}".format(Path(filepath).name))
+
+    # Map project dirs to web URLs
+    proj_map = {}
+    for proj in projects:
+        pdir = proj.get("project_dir", "")
+        web_url = proj.get("web_url", "")
+        if pdir and web_url:
+            proj_map[pdir] = web_url
+
+    # Sync each changed module to its container
+    for mod_dir_str, mod_dir in changed_modules.items():
+        # Find which project this module belongs to
+        for pdir, web_url in proj_map.items():
+            if mod_dir_str.startswith(pdir):
+                _sync_module_to_local(mod_dir, web_url)
+                break
 
 
 def start_module_watcher(interval=2):
@@ -1374,7 +1584,7 @@ def start_module_watcher(interval=2):
                 new_files = [f for f in new_mtimes if f not in mtimes]
                 all_changed = list(set(changed + new_files))
                 if all_changed:
-                    _on_module_changed(all_changed)
+                    _on_module_changed(all_changed, projects)
             mtimes = new_mtimes
 
     t = threading.Thread(target=_watch_loop, daemon=True)

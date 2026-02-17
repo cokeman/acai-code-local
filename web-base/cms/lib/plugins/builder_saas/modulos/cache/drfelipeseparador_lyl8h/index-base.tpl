@@ -1,0 +1,1 @@
+<div class="p-12 bg-gray-300 text-gray-600 text-center">Mi nuevo módulo</div>

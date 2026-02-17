@@ -1,0 +1,75 @@
+<section class="bg-white border-b py-8">
+    <div class="container mx-auto flex flex-wrap pt-4 pb-12">
+            {% if tituloseccin3 %}
+        
+                            {% set tituloseccin3_tag = tituloseccin3_tag ?: 'P' %}
+                            {{ ('<' ~ tituloseccin3_tag ~ ' class="w-full my-2 text-5xl font-bold leading-tight text-center text-gray-800" >' ~ (tituloseccin3 ? tituloseccin3 : '') ~ ('PC8=' | base64_decode) ~ tituloseccin3_tag ~ '>') | raw }}
+                        
+            {% endif %}
+        <div class="w-full mb-4">
+            <div class="h-1 mx-auto gradient w-64 opacity-25 my-0 py-0 rounded-t"></div>
+        </div>
+        <ul class="w-full flex flex-wrap">
+            
+{% for record in records %} {% set index = loop.index0 %}
+<li class="w-full md:w-1/3 p-6 flex flex-col flex-grow flex-shrink">
+                <div class="flex-1 bg-white rounded-t rounded-b-none overflow-hidden shadow">
+                    <a href="#" class="flex flex-wrap no-underline hover:no-underline">
+                        
+{% if record.textocorto %}
+<p class="w-full text-gray-600 text-xs md:text-sm px-6 uppercase">
+                            <span class="wed_record.textocorto:textfield">
+                        {% if record.textocorto %} 
+ 
+                            {{ record.textocorto | raw }} 
+ 
+                        {% else %} 
+ 
+                            {{ "Elemento editable" | raw }} 
+ 
+                        {% endif %}
+                    </span>
+                        </p>
+{% endif %}
+
+                            {% if subttuloseccin3 %}
+                        
+                            {% set record = record|merge({'subttuloseccin3_tag': record.subttuloseccin3_tag ?: 'P'})  %}
+                            {{ ('<' ~ record.subttuloseccin3_tag ~ ' class="w-full font-bold text-xl text-gray-800 px-6" >' ~ (record.subttuloseccin3 ? record.subttuloseccin3 : '
+                            {% endif %}
+                        ') ~ ('PC8=' | base64_decode) ~ record.subttuloseccin3_tag ~ '>') | raw }}
+                        
+                        
+{% if record.textolargo %}
+<p class="text-gray-800 text-base px-6 mb-5">
+                            <span class="wed_record.textolargo:textfield">
+                        {% if record.textolargo %} 
+ 
+                            {{ record.textolargo | raw }} 
+ 
+                        {% else %} 
+ 
+                            {{ "Elemento editable" | raw }} 
+ 
+                        {% endif %}
+                    </span>
+                        </p>
+{% endif %}
+
+                    </a>
+                </div>
+                <div class="flex-none mt-auto bg-white rounded-b rounded-t-none overflow-hidden shadow p-6">
+                    
+{% if record.enlace %}
+<div class="flex items-center justify-start">
+                        <a class="mx-auto lg:mx-0 hover:underline gradient text-white font-bold rounded-full my-6 py-4 px-8 shadow-lg focus:outline-none focus:shadow-outline transform transition hover:scale-105 duration-300 ease-in-out" href="{{ record.enlace }}">{{ record.enlace_anchor }}</a>
+                    </div>
+{% endif %}
+
+                </div>
+            </li>
+{% endfor %}
+
+        </ul>
+    </div>
+</section>

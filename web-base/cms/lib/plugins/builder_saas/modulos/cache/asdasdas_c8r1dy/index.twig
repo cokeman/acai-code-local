@@ -1,0 +1,217 @@
+<div class="nav-sticky-toggle"></div>
+{% set categorias_v = 'categorias_vehiculos' | get('visible = 1',null,null) %}
+<script>
+    const defaultCat = {{categorias_v[0].num}}
+    const activarAnimaciones = {{ configuracion.activar_animaciones }}
+</script>
+{% set home = 'apartados' | get('num = 2').0 %}
+<div class="sticky top-0 left-0 bg-black w-full z-50">
+    <ul class="divide-x-2 text-sm py-2 text-white px-10 2xl:px-20 w-full flex items-center justify-end">
+        
+ {% for enlace in configuracion.otros_enlaces_header_bd %} 
+
+{% if enlace.enlace and enlace.texto %}
+<li class="text-xs lg:text-lg px-2 hover:text-white text-gray-200 transition-all duration-200 ease-in-out">
+            <a href="{{enlace.enlace}}">{{enlace.texto}}</a>
+        </li>
+{% endif %}
+
+ {% endfor %} 
+
+        {% set apartados = 'apartados' | get('num = 46',null,null,{}) %}
+ {% for ap in apartados %} 
+<li class="text-xs lg:text-lg px-2 hover:text-white text-gray-200 transition-all duration-200 ease-in-out ">
+            <a class="flex items-center" href="{{ap.enlace}}">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 30 30" width="16" height="16" fill="#fff" class="e11fteez1 header-1n0oa5t e3bhxjg0"><path d="M13.07 6.26c-3.69 0-6.81 2.73-6.81 6.691 0 4.02 3.15 7.05 6.93 7.05 3.721 0 6.811-2.76 6.811-6.69 0-4.05-3.12-7.05-6.93-7.05m8.19 7.02c0 2.01-.69 3.75-1.83 5.13l5.85 5.851-.87.9-5.88-5.88c-1.44 1.26-3.33 1.98-5.37 1.98C8.72 21.262 5 17.66 5 12.98 5 8.361 8.72 5 13.1 5c4.53 0 8.16 3.511 8.16 8.281"></path></svg>
+                <p class="ml-1">{{'Buscar' | translate }}</p>
+            </a>
+        </li>
+ {% endfor %} 
+
+    </ul>
+</div>
+<nav class="sticky top-0 left-0 z-50">
+    <div class="bg-black transition3s py-5 lg:py-6 margen">
+        <div class="container mx-auto max-w-7xl px-6 2xl:px-0">
+            <div class="flex flex-col lg:flex-row lg:items-center">
+                <div class="flex items-center justify-between">
+                    <a href="{{ home.enlace }}" aria-label="{{ 'Inicio' | translate }}" class="block mr-6 sm:mr-0">
+                        {% set configuracion_tienda = 'configuracion_tienda' | get('',null,null,{}) %}
+ {% for configuracion_tienda in configuracion_tienda %} 
+<img data-src="{{ configuracion_tienda.logo[0].urlPath }}" alt="{{ configuracion.tienda_nombre_empresa }}" width="61" height="80" class="imagen filter-white lazyload h-14 md:h-16 lg:h-20">
+ {% endfor %} 
+
+                    </a>
+                    <button type="button" class="lg:hidden navbar-toggle text-white hover:text-main-color transition3s p-1">
+                        <svg class="fill-current w-8 h-8" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
+                            <title>{{ 'Menu' | translate }}</title>
+                            <path d="M0 3h20v2H0V3zm0 6h20v2H0V9zm0 6h20v2H0v-2z"></path>
+                        </svg>
+                    </button>
+                </div>
+                <div class="navbar fixed hidden lg:block lg:static top-0 left-0 w-full lg:w-auto h-screen lg:h-auto">
+                    <div class="navbar-overlay navbar-toggle lg:hidden fixed top-0 left-0 w-full h-full bg-black bg-opacity-50"></div>
+                    <div class="navbar-content absolute lg:static top-0 right-0 w-10/12 sm:w-8/12 md:w-6/12 lg:w-auto h-full flex flex-col lg:flex-row items-center lg:justify-end bg-movil bg-black lg:bg-transparent xl:text-base headertext-color p-6 lg:p-0 overflow-auto lg:overflow-visible overscroll-contain transition3s">
+                        <button type="button" aria-label="{{ 'Cerrar' | translate }}" class="navbar-toggle lg:hidden text-cerrar border-cerrar text-white border border-gray-200 rounded-full p-1 mr-auto mb-6">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-x" width="24" height="24" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                                <path stroke="none" d="M0 0h24v24H0z" fill="none"></path>
+                                <line x1="18" y1="6" x2="6" y2="18"></line>
+                                <line x1="6" y1="6" x2="18" y2="18"></line>
+                            </svg>
+                        </button>
+                        <a href="{{ home.enlace }}" aria-label="{{ 'Inicio' | translate }}" class="block lg:hidden">
+                            {% set configuracion_tienda = 'configuracion_tienda' | get('',null,null,{}) %}
+ {% for configuracion_tienda in configuracion_tienda %} 
+<img data-src="{{ configuracion_tienda.logo[0].urlPath }}" alt="{{ configuracion.tienda_nombre_empresa }}" width="74" height="96" class="filter-white lazyload h-24">
+ {% endfor %} 
+
+                        </a>
+                        <hr class="lg:hidden w-full border-hr border-white opacity-50 mt-6 mb-10">
+                        {% set apartados = 'apartados' | get('visible_en_el_menu = 1') %}
+                        <ul class="w-full lg:w-auto flex flex-col lg:flex-row lg:flex-wrap items-center gap-4 lg:gap-8 lg:ml-10 transition3s">
+                            {% for apartado in apartados | filter(a => a.depth is same as('0')) %}
+                            <li>
+                                {% set subapartados = apartados | filter(s => s.parentNum is same as(apartado.num)) %}
+                                <div>
+                                    {% if apartado.num == 10 %}
+                                    
+{% if apartado.num == 10 %}
+
+ {% set tw_class = ['open_cats_btn block text-white hover:text-main-color uppercase transition3s'] %} 
+
+ {% if thisrecord.enlace is same as(apartado.enlace) %} {% set tw_class = tw_class|merge(['border-b-2 border-main-color']) %} {% endif %} 
+ <button onclick="openDropdown()" class="{{tw_class|join(' ')}}">{{ apartado.name }}</button>
+{% endif %}
+
+
+                                    {% elseif subapartados is empty %}
+                                    
+ {% set tw_class = ['block text-white hover:text-main-color uppercase transition3s'] %} 
+
+ {% if thisrecord.enlace is same as(apartado.enlace) %} {% set tw_class = tw_class|merge(['border-b-2 border-main-color']) %} {% endif %} 
+ <a href="{{ apartado.enlace }}" class="{{tw_class|join(' ')}}">{{ apartado.name }}</a>
+                                    {% else %}
+                                    <button type="button" onclick="openDropdown(null,{{ apartado.num }})" class="open_subs_btn w-full flex justify-center items-center text-white hover-apartados transition3s">
+                                        <span class="uppercase mr-2 lg:ml-0">{{ apartado.name }}</span>
+                                    </button>
+
+                                    {% endif %}
+                                </div>
+                            </li>
+                            {% endfor %}
+                        </ul>
+                        {% set idiomas = 'get_locale_links' | hook({ thisrecord: thisrecord }) %}
+                        
+{% if idiomas is not empty %}
+<div class="group relative mt-6 lg:mt-0 ml-auto lg:ml-6">
+                            <button type="button" class="hidden lg:flex items-center gap-2 p-2">
+                                <img data-src="/template/estandar/images/{{ idiomas.current }}.jpg" class="lazyload w-6 h-6 rounded-full border-2 object-cover object-center text-idioma border-white border-idiomas">
+                                <span class="font-semibold">{{ idiomas.current | upper }}</span>
+                                <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 icon icon-tabler icon-tabler-chevron-down stroke-current" width="20" height="20" viewBox="0 0 24 24" stroke-width="3" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                                    <path stroke="none" d="M0 0h24v24H0z" fill="none"></path>
+                                    <polyline points="6 9 12 15 18 9"></polyline>
+                                </svg>
+                            </button>
+                            <div class="lg:absolute lg:top-full lg:left-0 lg:w-full lg:opacity-0 lg:group-hover:opacity-100 lg:transform lg:translate-y-10 lg:group-hover:translate-y-0 lg:pointer-events-none lg:group-hover:pointer-events-auto lg:transition lg:duration-300">
+                                <ul class="flex lg:flex-col flex-wrap justify-center gap-4 lg:gap-2 lg:bg-white lg:border lg:rounded-lg lg:p-1 lg:shadow-xl lg:mt-4">
+                                    {% for prefix, enlace in idiomas.others %}
+                                    <li>
+                                        <a href="{{ enlace }}" class="flex items-center justify-center gap-2 hover:bg-main-color bg-idiomas text-idiomas text-idioma-movil hover:text-white border rounded-lg p-2 transition duration-300">
+                                            <img data-src="/template/estandar/images/{{ prefix }}.jpg" class="lazyload w-6 h-6 rounded-full border-2 object-cover object-center border-white">
+                                            <span class="font-semibold">{{ prefix | upper }}</span>
+                                        </a>
+                                    </li>
+                                    {% endfor %}
+                                </ul>
+                            </div>
+                        </div>
+{% endif %}
+
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+{% if configuracion.texto_header %}
+<div class="bg-black bg-opacity-75">
+        <div class="container max-w-7xl px-6 2xl:px-0 mx-auto flex justify-end py-2">
+            {% set configuracion = 'configuracion' | get('',null,null,{}) %}
+ {% for configuracion in configuracion %} 
+<div class="text-xs sm:text-sm md:text-base text-white text-right">{{ configuracion.texto_header }}</div>
+ {% endfor %} 
+
+        </div>
+    </div>
+{% endif %}
+
+    
+{% if thisrecord.tableName = 'secciones_vehiculos' %}
+<div class="bg-white shadow-xl">
+        <ul class="secciones container max-w-7xl px-6 2xl:px-0 mx-auto flex justify-end py-2">
+            {% set secciones_vehiculos = 'secciones_vehiculos' | get('vehiculo = '~thisrecord.vehiculo,null,null,{}) %}
+ {% for seccion in secciones_vehiculos %} 
+<li class="text-xs sm:text-sm md:text-base text-white text-right">{{ seccion.title }}</li>
+ {% endfor %} 
+
+        </ul>
+    </div>
+{% endif %}
+
+
+    <div class="hidden sticky top-14 lg:top-16 2xl:top-24 bg-white text-white z-40 py-2 categories_info">
+        <div class="container mx-auto max-w-8xl px-6 flex flex-wrap">
+            <div class="lg:w-2/12 border-r">
+                <!--TITULARES-->
+                <ul class="hidden flex flex-wrap title-cats">
+                    
+ {% for categoria in categorias_v %} 
+<li class="title-cat-{{categoria.num}} text-neutral-600 text-sm w-full py-2 text-black hover:text-black cursor-pointer" onclick="selectMenuCat({{categoria.num}})">{{categoria.title}}</li>
+ {% endfor %} 
+
+                </ul>
+                {% set apartados = 'apartados' | get('',null,null,{}) %}
+ {% for ap in apartados %} 
+<ul id="ap-subs-{{ap.num}}" class="hidden flex flex-wrap title-subs">
+                    <li class="title-cat-{{sub.num}} text-neutral-600 text-sm w-full py-2 text-black hover:text-black cursor-pointer text-lg font-semibold"><a class="block w-full h-full" href="{{ap.enlace}}">{{ap.name}}</a></li>
+                    
+ {% for sub in apartados | filter(s => s.parentNum is same as(ap.num)) %} 
+<li class="title-cat-{{sub.num}} text-neutral-600 text-sm w-full py-2 text-black hover:text-black cursor-pointer"><a class="block w-full h-full" href="{{sub.enlace}}">{{sub.name}}</a></li>
+ {% endfor %} 
+
+                </ul>
+ {% endfor %} 
+
+            </div>
+            <!--DATA-->
+            <div class="lg:w-10/12 px-6 pb-10 min-h-[12rem]">
+                
+ {% for categoria in categorias_v %} 
+<ul id="cat-{{categoria.num}}" class=" h-full category_list hidden flex items-center space-x-3">
+                    {% set vehiculos = 'vehiculos' | get('visible = 1 and categoria = '~categoria.num,null,null,{}) %}
+ {% for vehiculo in vehiculos %} 
+<li class="text-neutral-600 text-sm w-full lg:w-1/4 py-2 text-black">
+                        <a href="{{vehiculo.enlace}}" class="flex flex-col">
+                            <img class="w-full h-48 object-contain object-center" src="{{vehiculo.galeria_de_fotos.0.urlPath | imagec(500)}}">
+                            <p class="mt-auto text-center font-semibold">{{vehiculo.title}}</p>
+                        </a>
+                    </li>
+ {% endfor %} 
+
+                    <li class="group cursor-pointer click-a-child flex flex-col items-center justify-center relative">
+                        <div class="transform rotate-45 transition3s group-hover:rotate-180 h-12 w-12 text-black flex items-center justify-center bg-yellow-400 font-semibold text-xl">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="absolute transform rotate-45" width="20" height="20" viewBox="0 0 24 24" stroke-width="1.5" stroke="#2c3e50" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                                <path stroke="none" d="M0 0h24v24H0z" fill="none"></path>
+                                <path d="M12 5l0 14"></path>
+                                <path d="M5 12l14 0"></path>
+                            </svg>
+                        </div>
+                        <a href="{{categoria.enlace}}" class="text-sm text-neutral-600 mt-4">{{categoria.title}}</a>
+                    </li>
+                </ul>
+ {% endfor %} 
+
+            </div>
+        </div>
+    </div>
+</nav>

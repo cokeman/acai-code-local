@@ -1,0 +1,63 @@
+<div class="buscador-noticias">
+  <div class="buscador-noticias__container">
+    <!-- Campo de búsqueda -->
+    <div class="buscador-noticias__search-box">
+      <input type="text" v-model="searchTerm" @input="handleSearch" placeholder="Buscar noticias..." class="buscador-noticias__input" id="buscador-noticias-input">
+      <button @click="performSearch" class="buscador-noticias__button" type="button">
+        <svg class="buscador-noticias__icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+        </svg>
+      </button>
+    </div>
+
+    <!-- Mensaje de estado -->
+    <div v-if="isLoading" class="buscador-noticias__loading">
+      <p class="buscador-noticias__loading-text">Buscando...</p>
+    </div>
+
+    <div v-if="error" class="buscador-noticias__error">
+      <p class="buscador-noticias__error-text">{{ error }}</p>
+    </div>
+
+    <!-- Resultados -->
+    <div v-if="!isLoading &amp;&amp; !error" class="buscador-noticias__results">
+      <div v-if="results.length === 0 &amp;&amp; searchTerm" class="buscador-noticias__no-results">
+        <p class="buscador-noticias__no-results-text">No se encontraron noticias con el término "{{ searchTerm }}"</p>
+      </div>
+
+      <div v-if="searchTerm &amp;&amp; results.length > 0" class="buscador-noticias__count">
+        <p class="buscador-noticias__count-text">
+          Se encontraron {{ results.length }} noticia<span v-if="results.length !== 1">s</span>
+        </p>
+      </div>
+
+      <!-- Lista de noticias -->
+      <div class="buscador-noticias__list">
+        <article v-for="noticia in results" :key="noticia.num" class="buscador-noticias__item">
+          <a :href="noticia.enlace || '#'" class="buscador-noticias__link">
+            <div v-if="noticia.imagen_destacada &amp;&amp; noticia.imagen_destacada.length > 0" class="buscador-noticias__image-wrapper">
+              <img :src="getImageUrl(noticia.imagen_destacada[0])" :alt="noticia.title" class="buscador-noticias__image">
+            </div>
+            <div class="buscador-noticias__content">
+              <div class="buscador-noticias__header">
+                <h3 class="buscador-noticias__title">{{ noticia.title }}</h3>
+                <span v-if="noticia.destacado == 1" class="buscador-noticias__badge">Destacado</span>
+              </div>
+              <div v-if="noticia.fecha_publicacion" class="buscador-noticias__date">
+                {{ formatDate(noticia.fecha_publicacion) }}
+              </div>
+              <div v-if="noticia.content" class="buscador-noticias__excerpt">
+                {{ truncateText(noticia.content, 150) }}
+              </div>
+            </div>
+          </a>
+        </article>
+      </div>
+
+      <!-- Mensaje inicial -->
+      <div v-if="!searchTerm" class="buscador-noticias__initial">
+        <p class="buscador-noticias__initial-text">Escribe en el campo de búsqueda para encontrar noticias</p>
+      </div>
+    </div>
+  </div>
+</div>

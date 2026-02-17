@@ -1,0 +1,9 @@
+#marginEditor{
+	transition:all .3s ease-in-out;
+	z-index:10001;
+}
+#marginEditor.hidden{display:block !important;visibility:inherit !important;}
+#marginEditor:not(.showed){
+	pointer-events: none;
+	transform: translateY(-100%);
+}

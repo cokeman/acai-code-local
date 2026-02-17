@@ -1,0 +1,65 @@
+<section>
+    <div class="wrapperSlider relative px-2 py-16">
+        <ul class="my-slider">
+            
+{% for record in bloques %} {% set index = loop.index0 %}
+<li class="relative px-12 md:px-4 py-12">
+                
+{% if false %}
+<a href="{{ record.enlace }}">{{ record.enlace_anchor }}</a>
+{% endif %}
+
+                <a href="{{record.enlace}}">
+                    <div class="nunito bg-white shadow-xl p-8">
+                        <div class="flex">   
+                            <span>
+                        {{ ('<' ~ (record.ttulo_tag ? record.ttulo_tag : 'P') ~ ' class="text-2xl font-bold pr-4" c-if="record.ttulo" >' ~ (record.ttulo ? record.ttulo : 'One of the easiest online accounting systems we've tried') ~ ('PC8=' | base64_decode) ~ (record.ttulo_tag ? record.ttulo_tag : 'P') ~ '>') | raw }}
+                    </span>
+                            
+{% if record.imagen %}
+<div class="pl-4">
+                                <div class="relative block p-1/10 w-24">
+                                    <img data-src="{{ record.imagen.0.urlPath | imagec(400) }}" alt="" class="absolute rounded-full top-0 left-0 w-full h-full object-cover object-center lazyload">
+                                </div>
+                            </div>
+{% endif %}
+
+                        </div>
+                        
+{% if record.subttulo %}
+<div class="text-yellow-500 font-bold py-4 wed_record.subttulo:textfield">
+                        {% if record.subttulo %} 
+ 
+                            {{ record.subttulo | raw }} 
+ 
+                        {% else %} 
+ 
+                            {{ "Jenny Doe" | raw }} 
+ 
+                        {% endif %}
+                    </div>
+{% endif %}
+
+                        
+{% if record.texto %}
+<div class="text-gray-400 py-2 wed_record.texto:textfield">
+                        {% if record.texto %} 
+ 
+                            {{ record.texto | raw }} 
+ 
+                        {% else %} 
+ 
+                            {{ "Duis consectetur feugiat auctor. Morbi nec enim luctus, feugiat arcu id, ultricies ante. Duis vel massa eleifend, porta est non, feugiat metus." | raw }} 
+ 
+                        {% endif %}
+                    </div>
+{% endif %}
+
+                    </div>
+                </a>
+            </li>
+{% endfor %}
+
+        </ul>
+    </div>
+</section>  

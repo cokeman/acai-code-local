@@ -1,0 +1,95 @@
+<section class="relative overflow-hidden bg-slate-950 text-white py-16 px-6 lg:px-12 rounded-3xl shadow-2xl">
+  <div class="absolute inset-0 opacity-30 bg-[radial-gradient(circle_at_20%_20%,rgba(94,234,212,0.25),transparent_35%),radial-gradient(circle_at_80%_0%,rgba(94,129,244,0.2),transparent_35%),radial-gradient(circle_at_50%_80%,rgba(251,113,133,0.2),transparent_35%)]"></div>
+  <div class="relative max-w-6xl mx-auto flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
+    <div class="space-y-3">
+      <p class="text-sm uppercase tracking-[0.2em] text-teal-200">
+                        {% if eyebrow %} 
+ 
+                            {{ eyebrow | raw }} 
+ 
+                        {% else %} 
+ 
+                            {{ "Galería Destacada" | raw }} 
+ 
+                        {% endif %}
+                    </p>
+      <h2 class="text-3xl sm:text-4xl lg:text-5xl font-semibold text-white">
+                        {% if titulo %} 
+ 
+                            {{ titulo | raw }} 
+ 
+                        {% else %} 
+ 
+                            {{ "Explora nuestro portafolio" | raw }} 
+ 
+                        {% endif %}
+                    </h2>
+      <p class="max-w-2xl text-slate-200 text-lg">
+                        {% if descripcion %} 
+ 
+                            {% if descripcion | isHTML %}
+                                {{ descripcion | raw }} 
+ 
+                            {% else %}
+                                {{ descripcion | nl2br }} 
+ 
+                            {% endif %}
+                        {% else %} 
+ 
+                            {{ "Una selección curada de proyectos recientes con imágenes de alta calidad." | nl2br }} 
+ 
+                        {% endif %}
+                    </p>
+    </div>
+    <div class="flex flex-wrap items-center gap-3">
+      <a class="inline-flex items-center gap-2 rounded-full bg-white/10 hover:bg-white/20 text-white px-4 py-2 text-sm font-medium backdrop-blur transition" href="{{ enlacecta }}"><span><? echo @$textocta ? nl2br($textocta) : 'Ver todo';?></span>
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
+      </a>
+    </div>
+  </div>
+
+  <div class="relative max-w-6xl mx-auto mt-10">
+    
+{% for record in items %} {% set index = loop.index0 %}
+<div class="grid gap-6 sm:grid-cols-2 lg:grid-cols-3" data-max="12">
+      
+ {% for item in items %} 
+<div class="group relative overflow-hidden rounded-2xl border border-white/10 bg-white/5 backdrop-blur shadow-lg transition hover:-translate-y-1 hover:border-white/20">
+        <div class="aspect-[4/3] overflow-hidden bg-slate-800">
+          
+{% if item.imagen &amp;&amp; item.imagen.length %}
+<img class="h-full w-full object-cover transition duration-500 group-hover:scale-105" src="{{ item.imagen[0].urlPath | imagec(900) }}" alt="{{ item.titulo }}"> {% else %} <div class="h-full w-full flex items-center justify-center text-slate-400 text-sm">Sin imagen</div>
+{% endif %}
+
+          
+        </div>
+        <div class="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent opacity-80 pointer-events-none"></div>
+        <div class="absolute inset-0 flex flex-col justify-end p-5 gap-2">
+          <div class="flex items-center gap-2">
+            <span class="inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1 text-xs font-medium text-teal-100">
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 17c-.77 1.333.192 3 1.732 3z"></path></svg>
+              {{ item.tagline }}
+            </span>
+          </div>
+          <h3 class="text-xl font-semibold text-white leading-tight">{{ item.titulo }}</h3>
+          <p class="text-sm text-slate-200 line-clamp-2">{{ item.descripcion }}</p>
+          <div class="pt-2 flex items-center gap-2">
+            
+{% if item.enlace %}
+<a :href="item.enlace" class="inline-flex items-center gap-2 text-teal-100 text-sm font-semibold hover:text-white transition">
+              {{ item.textoenlace }}
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
+            </a> {% else %} <span class="text-slate-300 text-sm">{{ item.textoenlace }}</span>
+{% endif %}
+
+            
+          </div>
+        </div>
+      </div>
+ {% endfor %} 
+
+    </div>
+{% endfor %}
+
+  </div>
+</section>

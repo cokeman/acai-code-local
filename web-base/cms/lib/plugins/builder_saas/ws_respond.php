@@ -8,23 +8,23 @@ if (isset($_REQUEST["action_ws"])){
     global $wsTimeStamp;   
 
     switch($_REQUEST["action_ws"]){
-        case "getModuleSchemas": die(json_encode(["result" => 1,"modules" => _getModules()])); break;
+        case "getModuleSchemas": die(json_encode(["result" => 1,"modules" => getModules()])); break;
         case "getFullModule": die(json_encode(["result" => 1,"data" => getZipModule()])); break;
-        case "getLayoutData": die(json_encode(["result" => 1,"data" => _getLayoutData()])); break;
+        case "getLayoutData": die(json_encode(["result" => 1,"data" => getLayoutData()])); break;
         case "getHooksData": die(json_encode(["result" => 1,"data" => getHooksData()])); break;
-        case "getTableData": die(json_encode(["result" => 1,"data" => _getTableData()])); break;
+        case "getTableData": die(json_encode(["result" => 1,"data" => getTableData()])); break;
         case "getGitLog" : die(json_encode(["result" => 1,"data" => getGitLog()])); break;
         case "recoverGit" : die(json_encode(["result" => 1,"data" => recoverGit()])); break;
-        case "saveLibrarie": _saveLibrarie(); break;
+        case "saveLibrarie": saveLibrarie(); break;
         case "compileTailwind": compileTailwind(); break;
         case "saveLexicalData": saveLexicalData(); break;
         case "set_builder_data": set_builder_data(); break;
-        case "saveLayoutData": _saveLayoutData(); break;
+        case "saveLayoutData": saveLayoutData(); break;
         case "saveHooksData": saveHooksData(); break;
-        case "saveModule": _saveModule(); break;
+        case "saveModule": saveModule(); break;
         case "saveFileBuilder": _saveFileBuilder(); break;
         case "removeFileBuilder": _removeFileBuilder(); break;
-        case "deleteModule": _deleteModule(); break;
+        case "deleteModule": deleteModule(); break;
         case "checkCodeSyntax": checkCodeSyntax(); break;
         case "getAllLinks": getAllLinks(); break;
         case "moduleExists": moduleExists(); break;
@@ -36,7 +36,8 @@ if (isset($_REQUEST["action_ws"])){
         case "generateMinJs" : require_once "builder_functions.php"; die(generateMinJsV2()); break;
         case "checkModuleCode" : die(checkModuleCode()); break;
         case "cleanUploads": cleanUploads(); break;
-        case "generateModuleFromString": _generateModuleFromString(); break;
+        case "flushCache": flushCache(); die(json_encode(["result" => 1,"success" => true])); break;
+        case "getAcaiPackFiles": getAcaiPackFiles(); break;
     }
 
     require_once __DIR__."/mcp_respond.php";
@@ -44,19 +45,22 @@ if (isset($_REQUEST["action_ws"])){
     
 }
 
+function flushCache($onlyThisHost = true){
+    require_once __DIR__."/../../classes/CocoDB.php";
 
-function _generateModuleFromString(){
-    // ocultar warnings php 
-    error_reporting(E_ERROR | E_PARSE);
+    CocoDB::initCache();
+    if (!CocoDB::$redis || !CocoDB::$redis->isConnected()) return false;
 
-    $data = file_get_contents('php://input');
-    header("Content-type:application/json");
-    if (!@$data) die(json_encode(["error" => "Missing Data"]));
-    $data = json_decode($data,true);
-    require_once __DIR__."/funciones.php";
-    //$respond = generateModuleFromString(@$data);
-    $respond = ["result" => 1,"success" => true,"data" => "Función no implementada","dataReceived" => $data];
-    die(json_encode($respond));
+    if ($onlyThisHost) {
+        // Solo borra claves de este host
+        $keys = CocoDB::$redis->keys($_SERVER["HTTP_HOST"] . "_*");
+        if ($keys) CocoDB::$redis->del($keys);
+    } else {
+        // Borra todo
+        CocoDB::$redis->flushDB();
+    }
+
+    return true;
 }
 
 function cleanUploads(){
@@ -530,8 +534,8 @@ function set_builder_data(){
     
 }
 function saveLexicalData(){
+    flushCache();
     $config = loadINI(__DIR__.'/custom-schema.ini.php')['config'];
-    
     $fileData = json_decode(file_get_contents('php://input'), true);
     CocoWS::setToken(@$fileData["token"]);
     if (!CocoWS::validateUploadToken(@$fileData["tokenHash"])) {
@@ -595,6 +599,7 @@ function saveLexicalData(){
     die(json_encode(['success' => true,'modulePath' => $modulePath, "lexicalType" => @$lexicalType]));
 }
 function saveAMPPages(){
+    flushCache();
     $path = realpath(__DIR__."/../../../../template/estandar/modulos");
     $result = array_filter(scandir($path."/"),function($rec){ return $rec!="." && $rec!=".."; });
     $files = [];
@@ -1107,7 +1112,7 @@ function getHooksData(){
 
 }
 
-function _getLayoutData(){
+function getLayoutData(){
     require_once __DIR__."/builder_functions.php";
     $config = loadINI(__DIR__.'/custom-schema.ini.php')['config'];
     
@@ -1138,7 +1143,7 @@ function _getLayoutData(){
     }
     
 }
-function _getTableData(){
+function getTableData(){
     $config = loadINI(__DIR__.'/custom-schema.ini.php')['config'];
     
     $result = array("result" => 0);
@@ -1193,8 +1198,8 @@ function _getTableData(){
     die(json_encode(['error' => ['message' => 'No se ha suministrado el menu', 'code' => 403]]));
     
 }
-function _saveLibrarie(){
-    
+function saveLibrarie(){
+    flushCache();
     $config = loadINI(__DIR__.'/custom-schema.ini.php')['config'];
     
     $fileData = json_decode(file_get_contents('php://input'), true);
@@ -1244,6 +1249,7 @@ function createHooksFiles($hooksArray, $deletePreviousFiles = false){
 }
 
 function saveHooksData(){
+    flushCache();
     require_once "builder_functions.php";
     $fileData = json_decode(file_get_contents('php://input'), true);
     CocoWS::setToken(@$fileData["token"]);
@@ -1263,7 +1269,8 @@ function saveHooksData(){
     }
 }
 
-function _saveLayoutData(){
+function saveLayoutData(){
+    flushCache();
     require_once "builder_functions.php";
     
     $config = loadINI(__DIR__.'/custom-schema.ini.php')['config'];
@@ -1325,6 +1332,7 @@ function _saveLayoutData(){
     
 }
 function saveLayoutData_ANTIGUO(){
+    flushCache();
     
     $config = loadINI(__DIR__.'/custom-schema.ini.php')['config'];
     
@@ -1356,7 +1364,7 @@ function moduleExists(){
         die(json_encode(['success' => true,'yaExiste' => false]));
 }
 
-function _deleteModule(){
+function deleteModule(){
     $config = loadINI(__DIR__.'/custom-schema.ini.php')['config'];
     $fileData = json_decode(file_get_contents('php://input'), true);
     CocoWS::setToken(@$fileData["token"]);
@@ -1398,7 +1406,8 @@ function _deleteModule(){
     die(json_encode(['success' => true]));
 }
 
-function _saveModule(){
+function saveModule(){
+    flushCache();
     $config = loadINI(__DIR__.'/custom-schema.ini.php')['config'];
     $fileData = json_decode(file_get_contents('php://input'), true);
     CocoWS::setToken(@$fileData["token"]);
@@ -1456,7 +1465,7 @@ function _saveModule(){
     
 }
 
-function _getModules($path=null) {
+function getModules($path=null) {
     $config = loadINI(__DIR__.'/custom-schema.ini.php')['config'];
     if (!defined("RUTA_PLANTILLA")) define("RUTA_PLANTILLA","/template/estandar");
     $result = array("result" => 0);
@@ -1560,5 +1569,92 @@ function _getModules($path=null) {
     }
     return [];
     
+}
+
+function getAcaiPackFiles() {
+    $fileData = json_decode(file_get_contents('php://input'), true);
+    if (@$_REQUEST) $fileData = array_merge(@$fileData ?: [], $_REQUEST);
+
+    CocoWS::setToken(@$fileData["token"]);
+    if (!CocoWS::validateUploadToken(@$fileData["tokenHash"])) {
+        die(json_encode(['error' => ['message' => 'Token no válido', 'code' => 403]]));
+    }
+
+    $rootPath = realpath(__DIR__ . "/../../../../") . "/";
+    $config = loadINI(__DIR__ . '/custom-schema.ini.php')['config'];
+    $modulosPath = realpath(__DIR__ . '/' . $config['modulePath']) . "/";
+
+    $zipFileName = 'acai_pack_' . time() . '.zip';
+    $zipFilePath = sys_get_temp_dir() . '/' . $zipFileName;
+
+    $zip = new ZipArchive();
+    if ($zip->open($zipFilePath, ZipArchive::CREATE | ZipArchive::OVERWRITE) !== true) {
+        die(json_encode(["result" => 0, "error" => "No se pudo crear el archivo zip"]));
+    }
+
+    // 1. Add /hooks folder
+    $hooksPath = $rootPath . "hooks/";
+    if (is_dir($hooksPath)) {
+        addFolderToZip($zip, $hooksPath, "hooks");
+    }
+
+    // 2. Add layout.json
+    $layoutPath = __DIR__ . "/layout.json";
+    if (file_exists($layoutPath)) {
+        $zip->addFile($layoutPath, "layout.json");
+    }
+
+    // 3. Add modules: those from getModuleSchemas (have builder.json) + custom-* prefix
+    $validModules = [];
+    $allModules = scandir($modulosPath);
+    foreach ($allModules as $module) {
+        if ($module === "." || $module === "..") continue;
+        $moduleName = str_replace(".tpl", "", $module);
+        $hasBuilderJson = file_exists($modulosPath . $moduleName . "/builder.json");
+        $isCustom = strpos($moduleName, "custom-") === 0;
+        if ($hasBuilderJson || $isCustom) {
+            $validModules[] = $moduleName;
+        }
+    }
+
+    foreach ($validModules as $moduleName) {
+        $moduleFullPath = $modulosPath . $moduleName . "/";
+        if (is_dir($moduleFullPath)) {
+            addFolderToZip($zip, $moduleFullPath, "modulos/" . $moduleName);
+        }
+    }
+
+    // 4. Add /cms/uploads only if uploads=true
+    if (@$fileData["uploads"] == "true" || @$fileData["uploads"] === true) {
+        $uploadsPath = $rootPath . "cms/uploads/";
+        if (is_dir($uploadsPath)) {
+            addFolderToZip($zip, $uploadsPath, "uploads");
+        }
+    }
+
+    $zip->close();
+
+    // Send the zip file
+    header('Content-Type: application/zip');
+    header('Content-Disposition: attachment; filename="' . $zipFileName . '"');
+    header('Content-Length: ' . filesize($zipFilePath));
+    header('Pragma: no-cache');
+    readfile($zipFilePath);
+    unlink($zipFilePath);
+    exit;
+}
+
+function addFolderToZip($zip, $folderPath, $zipBasePath) {
+    $iterator = new RecursiveIteratorIterator(
+        new RecursiveDirectoryIterator($folderPath, RecursiveDirectoryIterator::SKIP_DOTS),
+        RecursiveIteratorIterator::LEAVES_ONLY
+    );
+    foreach ($iterator as $file) {
+        if ($file->isFile()) {
+            $filePath = $file->getRealPath();
+            $relativePath = $zipBasePath . "/" . substr($filePath, strlen($folderPath));
+            $zip->addFile($filePath, $relativePath);
+        }
+    }
 }
 ?>

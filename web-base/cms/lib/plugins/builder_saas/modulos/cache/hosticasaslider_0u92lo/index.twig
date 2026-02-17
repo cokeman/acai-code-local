@@ -1,0 +1,115 @@
+<section>
+    <div class="text-white relative">
+        <div class="bg-blue-900 mt-10 absolute top-0 left-0 w-full h-full"></div>
+        
+ 
+                        {% set list_values = invertir | trim | split("	") %} 
+
+                    
+ 
+                        {% if record %} 
+ 
+                            {% set auxRecord = record %} 
+ 
+                        {% endif %} 
+
+                    
+ 
+                        
+                        {% for record in list_values %} 
+ 
+                            {% set index = loop.index0 %} 
+ 
+                    <div></div>
+
+                        {% endfor %}
+
+                        {% if auxRecord %} {% set record = auxRecord %} {% endif %}
+                    
+        <ul class="my-slider3">
+            
+{% for record in slides %} {% set index = loop.index0 %}
+<li class="relative">
+                
+{% if record.imagen %}
+<div class="flex flex-col md:flex-row absolute top-0 left-0 w-full h-full">
+                    <div class="w-full md:w-1/3 {{invertir ? 'hidden' : 'block'}}"></div>
+                    <div class="w-full md:w-2/3 relative">
+                        <img data-src="{{ record.imagen.0.urlPath | imagec(1000) }}" alt="" class="lazyload w-full h-full object-cover object-center">
+                        <div class="bg-black opacity-25 top-0 left-0 w-full h-full absolute"></div>
+                    </div>
+                </div>
+{% endif %}
+
+                <div class="relative flex pt-24 sm:pt-52 md:pt-0">
+                    <div class="w-full md:w-1/2 {{invertir ? 'block' : 'hidden'}}"></div>
+                    <div class="w-full md:w-1/2 {{invertir ? 'pr-8 md:pr-20' : 'pl-8 md:pl-20' }} pt-80 md:pt-40 pb-24 md:pb-40 {{invertir ? 'flex flex-col items-end text-right' : ''}}">
+                        {% if record.titulo2 is not empty %}
+                            
+                        {% set record.titulo2_tag = record.titulo2_tag ?: 'P' %}
+                        {{ ('<' ~ record.titulo2_tag ~ ' class="text-4xl md:text-5xl font-bold" >' ~ (record.titulo2 ? record.titulo2 : '') ~ ('PC8=' | base64_decode) ~ record.titulo2_tag ~ '>') | raw }}
+                    
+                        {% endif %}
+                        <div class="w-full md:w-2/3">
+                            
+{% if record.texto %}
+<p class="leading-relaxed {{invertir ? 'pl-10' : 'pr-10'}} py-12 wed_record.texto:textbox">
+                        {% if record.texto %} 
+ 
+                            {% if record.texto | isHTML %}
+                                {{ record.texto | raw }} 
+ 
+                            {% else %}
+                                {{ record.texto | nl2br }} 
+ 
+                            {% endif %}
+                        {% else %} 
+ 
+                            {{ "Duis consectetur feugiat auctor. Morbi nec enim luctus, feugiat arcu id, ultricies ante. Duis vel massa eleifend, porta est non, feugiat metus." | nl2br }} 
+ 
+                        {% endif %}
+                    </p>
+{% endif %}
+
+                            
+{% if false %}
+<a href="{{ record.enlace }}">{{ record.enlace_anchor }}</a>
+{% endif %}
+
+                            <div class="{{invertir ? 'flex justify-end' : ''}}">
+                                
+{% if record.enlace %}
+<a href="{{record.enlace}}" class="flex items-center text-xl font-bold">
+                                    {{record.enlace_anchor}}
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-arrow-narrow-right pl-2" width="32" height="32" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                                        <path stroke="none" d="M0 0h24v24H0z" fill="none"></path>
+                                        <line x1="5" y1="12" x2="19" y2="12"></line>
+                                        <line x1="15" y1="16" x2="19" y2="12"></line>
+                                        <line x1="15" y1="8" x2="19" y2="12"></line>
+                                    </svg>
+                                </a>
+{% endif %}
+
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </li>
+{% endfor %}
+
+        </ul>
+        
+        <div class="bannerSlider flex absolute bottom-0 {{invertir ? 'right-0 pr-20' : 'left-0 pl-20'}} md:pb-12">
+            <div class="flex items-center justify-center w-16 h-full">
+                <svg class="prev3 w-6 h-6 text-white hover:text-gray-500 fill-current svg-icon" viewBox="0 0 20 20">
+                    <path d="M8.388,10.049l4.76-4.873c0.303-0.31,0.297-0.804-0.012-1.105c-0.309-0.304-0.803-0.293-1.105,0.012L6.726,9.516c-0.303,0.31-0.296,0.805,0.012,1.105l5.433,5.307c0.152,0.148,0.35,0.223,0.547,0.223c0.203,0,0.406-0.08,0.559-0.236c0.303-0.309,0.295-0.803-0.012-1.104L8.388,10.049z"></path>
+                </svg>
+            </div>
+            <div class="flex items-center justify-center w-16 h-full">
+                <svg class="next3 w-6 h-6 text-white hover:text-gray-500 fill-current svg-icon" viewBox="0 0 20 20">
+                    <path d="M11.611,10.049l-4.76-4.873c-0.303-0.31-0.297-0.804,0.012-1.105c0.309-0.304,0.803-0.293,1.105,0.012l5.306,5.433c0.304,0.31,0.296,0.805-0.012,1.105L7.83,15.928c-0.152,0.148-0.35,0.223-0.547,0.223c-0.203,0-0.406-0.08-0.559-0.236c-0.303-0.309-0.295-0.803,0.012-1.104L11.611,10.049z"></path>
+                </svg>
+            </div>
+        </div>
+    </div>
+</section>

@@ -1,0 +1,228 @@
+{% set configuracion = 'configuracion' | get('',null,null,{}) %}
+ {% for configuracion in configuracion %} 
+
+ {% endfor %} 
+
+
+ {% set tienda = 'configuracion_tienda' | get('num != 0')[0] %} 
+
+
+ {% set logo = tienda.logo.0.urlPath ? 'https://' ~ server.HTTP_HOST ~ tienda.logo.0.urlPath : 'https://' ~ server.HTTP_HOST ~ '/template/estandar/images/logo.png' %} 
+
+{% set header_logo = '<img src="'~logo~'" alt="Ursall" style="max-height:70px;display:block;margin:0 auto">' %}
+
+<section class="nps-ursall" style="background:transparent;">
+  <div class="container">
+    <div class="card">
+      <div class="card-head">
+        <span class="chip">NPS</span>
+        
+                            {% set ttulo_tag = ttulo_tag ?: 'P' %}
+                            {{ ('<' ~ ttulo_tag ~ ' >' ~ (ttulo ? ttulo : 'Cuéntanos tu opinión') ~ ('PC8=' | base64_decode) ~ ttulo_tag ~ '>') | raw }}
+                        
+        <div class="desc">
+                        {% if descripcin %} 
+ 
+                            {{ descripcin | raw }} 
+ 
+                        {% else %} 
+ 
+                            {{ "
+          Nos ayudas a mejorar: marca una nota y cuéntanos por qué.
+        " | raw }} 
+ 
+                        {% endif %}
+                    </div>
+      </div>
+
+      <!-- FORMULARIO REAL -->
+      <form id="zm0swv2m8" class="nps-form" method="post">
+                    
+ {% set variables = {"nps_score":{"type":"radio"},"status":{"type":"hidden"},"motivo":{"type":"textarea"},"mejora":{"type":"textarea"},"nombre":{"type":"text"},"email":{"type":"email","required":true},"telefono":{"type":"tel"},"consentimiento":{"type":"checkbox","required":true},"form":{"type":"hidden"}} %} 
+
+                    
+ {% set form = cocoForm({
+                        'id' : 'zm0swv2m8',
+                        'tableName' : 'nps_respuestas',
+                        'mailRecord' : ['correos','NPS'],
+                        'sendTo' : 'aperera@ursall.com',
+                        'sendToClient' : 'email',
+                        'captcha' : true,
+                        'honeypot' : true,
+                        'messageOK' : ¡Gracias! Hemos registrado tu opinión.,
+                        'showImages' : false,
+                        'attachFiles' : false,
+                        'messageKO' : Revisa los campos obligatorios.,
+                        'action' : 'null',
+                        'redirectTo' : 'null',
+                        'emailMode' : html,
+                        'emailB64' : false,
+                        'header' : header_logo,
+                        'footer_null' : "",
+                        'styles_null' : "",
+                        'variables' : variables
+                    }) %}
+
+
+        <!-- NPS 0..10 -->
+        <fieldset class="block">
+          <legend>¿Con qué probabilidad nos recomendarías? (0–10)</legend>
+          <div class="nps-grid">
+            <label><input type="radio" name="cocoForm[nps_score]" value="0" required=""><span>0</span></label>
+            <label><input type="radio" name="cocoForm[nps_score]" value="1"><span>1</span></label>
+            <label><input type="radio" name="cocoForm[nps_score]" value="2"><span>2</span></label>
+            <label><input type="radio" name="cocoForm[nps_score]" value="3"><span>3</span></label>
+            <label><input type="radio" name="cocoForm[nps_score]" value="4"><span>4</span></label>
+            <label><input type="radio" name="cocoForm[nps_score]" value="5"><span>5</span></label>
+            <label><input type="radio" name="cocoForm[nps_score]" value="6"><span>6</span></label>
+            <label><input type="radio" name="cocoForm[nps_score]" value="7"><span>7</span></label>
+            <label><input type="radio" name="cocoForm[nps_score]" value="8"><span>8</span></label>
+            <label><input type="radio" name="cocoForm[nps_score]" value="9"><span>9</span></label>
+            <label><input type="radio" name="cocoForm[nps_score]" value="10"><span>10</span></label>
+          </div>
+          <div class="hints">
+            <small>0 - Nada probable</small>
+            <small id="status" class="status">Selecciona una nota</small>
+            <small>10 - Muy probable</small>
+          </div>
+          <input type="hidden" name="cocoForm[status]">
+        </fieldset>
+
+        <!-- Comentarios -->
+        <div class="grid-2">
+          <label class="field">Motivo de tu puntuación
+            <textarea name="cocoForm[motivo]" rows="4" placeholder="Cuéntanos por qué diste esa nota"></textarea>
+          </label>
+          <label class="field">¿Qué podemos mejorar?
+            <textarea name="cocoForm[mejora]" rows="4" placeholder="Ideas de mejora (opcional)"></textarea>
+          </label>
+        </div>
+
+        <!-- Datos básicos -->
+        <div class="grid-3">
+          <label class="field">Nombre
+            <input type="text" name="cocoForm[nombre]" placeholder="Tu nombre" autocomplete="name">
+          </label>
+          <label class="field">Email
+            <input type="email" name="cocoForm[email]" placeholder="nombre@correo.com" autocomplete="email" required="">
+          </label>
+          <label class="field">Teléfono
+            <input type="tel" name="cocoForm[telefono]" placeholder="+34 600 000 000" autocomplete="tel">
+          </label>
+        </div>
+
+        <!-- Consentimiento editable -->
+        <label class="consent">
+          <input type="checkbox" name="cocoForm[consentimiento]" required="">
+          <div class="consent-text">
+                        {% if textodeconsentimiento %} 
+ 
+                            {{ textodeconsentimiento | raw }} 
+ 
+                        {% else %} 
+ 
+                            {{ "
+            Acepto la política de privacidad y el tratamiento de mis datos para fines de mejora del servicio.
+          " | raw }} 
+ 
+                        {% endif %}
+                    </div>
+        </label>
+
+        <div>
+
+ {% set configuracionRecord = 'configuracion' | get('num != 0','num desc',1) %} {% set configuracionRecord = configuracionRecord.0 %} 
+
+
+ {% if hasRecaptcha() %} 
+
+    <div class="g-recaptcha flex justify-center" data-sitekey="{{ configuracionRecord.site_key_recaptcha }}"></div>
+
+ {% else %} 
+
+    <div>
+        <img src="/captcha.php" style="width: 210px; display: block; margin: 20px auto;">
+        <input type="text" class="form-control" name="captcha" style="max-width: 210px;" placeholder="Captcha">
+    </div>
+
+ {% endif %} 
+
+</div>
+
+        <button type="submit" class="btn">Enviar</button>
+
+        <div class="ok" aria-live="polite" hidden=""></div>
+      <input name="cocoForm[form]" type="hidden" value="zm0swv2m8"><div>
+
+<div class="field seturecap">
+
+    <input type="text" id="full_user_name" name="cocoForm[full_user_name]" placeholder="Nombre" class="form-control">
+
+    <style>.seturecap {position: absolute;width: 1px;height: 1px;padding: 0;margin: -1px;overflow: hidden;clip: rect(0, 0, 0, 0);white-space: nowrap;border-width: 0;}</style>
+
+</div>
+
+
+</div></form>
+    </div>
+  </div>
+</section>
+
+<style>
+  .nps-ursall{padding:24px 12px}
+  .container{max-width:1040px;margin:0 auto}
+  .card{background:#fff;border-radius:16px;box-shadow:0 10px 30px rgba(2,16,60,.12),0 1px 0 rgba(2,16,60,.04);overflow:hidden}
+  .card-head{padding:22px 22px 10px;background:linear-gradient(180deg,#f7fbff,rgba(247,251,255,0))}
+  .chip{display:inline-block;background:#e8f1ff;color:#0b4fbf;font-weight:700;font-size:.75rem;padding:.25rem .5rem;border-radius:999px;margin-bottom:.5rem}
+  h2{font-size:1.75rem;line-height:1.2;margin:0;color:#0b1220}
+  .desc{color:#6b7280;margin-top:.35rem}
+  .block{border:0;margin:14px 0 10px;padding:0}
+  .nps-grid{display:grid;grid-template-columns:repeat(11,minmax(0,1fr));gap:.5rem;margin-top:.75rem}
+  .nps-grid label{position:relative;display:block}
+  .nps-grid input{position:absolute;inset:0;opacity:0;cursor:pointer}
+  .nps-grid span{display:block;text-align:center;padding:.6rem 0;border:1px solid #d1d5db;border-radius:.65rem;background:#fff;user-select:none;transition:.15s ease}
+  .nps-grid input:checked+span{background:#2563eb;color:#fff;box-shadow:0 6px 14px rgba(37,99,235,.25);transform:translateY(-1px)}
+  .hints{display:grid;grid-template-columns:1fr auto 1fr;color:#6b7280;font-size:.8rem;margin-top:.5rem}
+  .status{font-weight:700;color:#10b981;text-align:center}
+  .grid-2{display:grid;grid-template-columns:1fr 1fr;gap:.9rem;margin:1rem 0}
+  .grid-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:.9rem;margin:.6rem 0 0}
+  .field{display:flex;flex-direction:column;gap:.35rem}
+  .field input,.field textarea{border:1px solid #d1d5db;border-radius:.65rem;padding:.65rem .8rem}
+  .consent{display:flex;gap:.6rem;align-items:flex-start;margin:1rem 0 .5rem}
+  .consent-text{font-size:.92rem;color:#4b5563}
+  .btn{background:#2563eb;color:#fff;border:0;border-radius:.7rem;padding:.85rem 1.1rem;font-weight:700;cursor:pointer;box-shadow:0 8px 18px rgba(37,99,235,.25)}
+  .btn:hover{filter:brightness(1.05)}
+  .ok{margin-top:.9rem;padding:.7rem 1rem;border:1px solid #bfdbfe;background:#eff6ff;border-radius:.65rem;color:#1e40af}
+  @media (max-width:900px){.grid-3{grid-template-columns:1fr 1fr}}
+  @media (max-width:640px){.grid-2,.grid-3{grid-template-columns:1fr}}
+</style>
+
+<script>
+  (function(){
+    var form = document.querySelector('.nps-form');
+    var statusEl = form.querySelector('#status');
+    var hidden   = form.querySelector('input[name="status"]');
+    var ok       = form.querySelector('.ok');
+
+    function setStatus(score){
+      var s = parseInt(score,10);
+      if(isNaN(s)){ statusEl.textContent='Selecciona una nota'; hidden.value=''; statusEl.className='status'; return; }
+      if(s<=6){ statusEl.textContent='Detractor'; hidden.value='Detractor'; statusEl.className='status is-det'; }
+      else if(s<=8){ statusEl.textContent='Neutral'; hidden.value='Neutral'; statusEl.className='status is-neu'; }
+      else { statusEl.textContent='Promotor'; hidden.value='Promotor'; statusEl.className='status is-pro'; }
+    }
+
+    form.addEventListener('change', function(e){
+      if(e.target.name==='nps_score'){ setStatus(e.target.value); }
+    });
+
+    form.addEventListener('submit', function(){
+      ok.hidden = false;
+      ok.textContent = '¡Gracias! Hemos registrado tu opinión.';
+    });
+
+    // Si ya viene marcada (autorrellenado)
+    var checked = form.querySelector('input[name="nps_score"]:checked');
+    if(checked){ setStatus(checked.value); }
+  })();
+</script>

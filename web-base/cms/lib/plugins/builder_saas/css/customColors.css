@@ -1,0 +1,22 @@
+.hover\:scale-125:hover{transform:scale(1.25);}
+.transition-3s{transition:all .3s ease-in-out;}
+.slide-fade-enter-active {
+  transition: all .2s ease;
+}
+.slide-fade-leave-active {
+  transition: all .2s ease;
+}
+.slide-fade-enter, .slide-fade-leave-to
+/* .slide-fade-leave-active below version 2.1.8 */ {
+  transform: translateX(100px);
+  opacity: 0;
+}
+#colorEditor{
+	transition:all .3s ease-in-out;
+	z-index:10001;
+}
+#colorEditor.hidden{display:block !important;visibility:inherit !important;}
+#colorEditor:not(.showed){
+	pointer-events: none;
+	transform: translateY(-100%);
+}

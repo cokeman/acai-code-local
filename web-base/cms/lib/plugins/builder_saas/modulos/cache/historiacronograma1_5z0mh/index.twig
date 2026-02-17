@@ -1,0 +1,143 @@
+<section class="bg-gray-500">
+    
+    <div class="container mx-auto max-w-8xl px-6">
+        
+        
+{% if false %}
+<ul>
+            
+{% for record in records %} {% set index = loop.index0 %}
+<li class="w-full">
+                
+{% if record.year is not empty %}
+<div class="lato absolute -top-20 -left-48 text-8xl font-bold custom-text-shadow wed_record.year:textfield">
+                        {% if record.year %} 
+ 
+                            {{ record.year | raw }} 
+ 
+                        {% else %} 
+ 
+                            {{ "
+                    19<span class="\&quot;text-main-color\&quot;">94</span>
+                " | raw }} 
+ 
+                        {% endif %}
+                    </div>
+{% endif %}
+ 
+                
+{% if record.titulo is not empty %}
+<div class="text-2xl text-main-color-dark font-semibold wed_record.titulo:textfield">
+                        {% if record.titulo %} 
+ 
+                            {{ record.titulo | raw }} 
+ 
+                        {% else %} 
+ 
+                            {{ "" | raw }} 
+ 
+                        {% endif %}
+                    </div>
+{% endif %}
+
+                
+{% if record.subtitulo is not empty %}
+<div class="text-2xl text-gray-500 font-light mb-6 wed_record.subtitulo:textfield">
+                        {% if record.subtitulo %} 
+ 
+                            {{ record.subtitulo | raw }} 
+ 
+                        {% else %} 
+ 
+                            {{ "" | raw }} 
+ 
+                        {% endif %}
+                    </div>
+{% endif %}
+
+                <div class="relative block p-1/7 w-1/3">
+                    
+{% if record.imagen is not empty %}
+<img src="{{ record.imagen.0.urlPath | imagec(400) }}" alt="" class="absolute top-0 left-0 w-full h-full object-cover object-center">
+{% endif %}
+
+                </div>
+            </li>
+{% endfor %}
+
+        </ul>
+{% endif %}
+
+
+        <ul class="flex justify-end py-12 transform -translate-x-20">
+            
+ {% for index,record in records %} 
+
+{% if index % 2 == 0 %}
+<li class="relative flex w-1/2 bg-white shadow-custom rounded-sm">
+                
+{% if record.ao is not empty %}
+<div class="lato absolute -top-20 -left-48 text-8xl font-bold custom-text-shadow">{{record.ao}}</div>
+{% endif %}
+
+                <div class="flex items-center w-2/3">
+                    <div class="flex flex-col items-start border-b-4 border-main-color w-full px-10 mr-20">
+                        
+{% if record.titulo is not empty %}
+<div class="text-2xl text-main-color-dark font-semibold">{{record.titulo}}</div>
+{% endif %}
+
+                        
+{% if record.subtitulo is not empty %}
+<div class="text-2xl text-gray-500 font-light mb-6">{{record.subtitulo}}</div>
+{% endif %}
+
+                    </div>
+                </div>
+                <div class="relative block p-1/7 w-1/3">
+                    <img src="{{record.imagen.0.urlPath | imagec(400)}}" class="absolute top-0 left-0 w-full h-full object-cover object-center" alt="">
+                </div>
+            </li>
+{% endif %}
+
+ {% endfor %} 
+
+        </ul>
+        
+        <ul class="flex py-12 transform translate-x-20">
+            
+ {% for index,record in records %} 
+
+{% if index % 2 == 1 %}
+<li class="relative flex w-1/2 bg-white shadow-custom rounded-sm">
+                
+{% if record.ao is not empty %}
+<div class="lato absolute -top-20 -right-48 text-8xl font-bold custom-text-shadow">{{record.ao}}</div>
+{% endif %}
+
+                <div class="relative block p-1/7 w-1/3">
+                    <img src="{{record.imagen.0.urlPath | imagec(400)}}" class="absolute top-0 left-0 w-full h-full object-cover object-center" alt="">
+                </div>
+                <div class="flex justify-end items-center w-2/3">
+                    <div class="flex flex-col items-end border-b-4 border-main-color w-full px-10 ml-20">
+                        
+{% if record.titulo is not empty %}
+<div class="text-2xl text-main-color-dark font-semibold">{{record.titulo}}</div>
+{% endif %}
+
+                        
+{% if record.subtitulo is not empty %}
+<div class="text-2xl text-gray-500 font-light mb-6">{{record.subtitulo}}</div>
+{% endif %}
+
+                    </div>
+                </div>
+            </li>
+{% endif %}
+
+ {% endfor %} 
+
+        </ul>
+        
+    </div>
+</section>

@@ -36,7 +36,7 @@ tpl_foot = "replace_code.php"
 pre_render = "pre_render.php"
 
 [menuFilter]
-actionHandler = "apartados,builder_custom,otros_contenidos"
+actionHandler = "apartados,builder_custom,blog"
 
 [actionFilter]
 actionHandler = "edit,add,list,erase,uploadList,uploadModify"
@@ -47,7 +47,7 @@ acceso_a_plugins_generales = 1
 acceso_a_plugins_especiales = ""
 ejecucion_php = ""
 tablas_asignadas_editor = ""
-tablas_asignadas_boton_builder = "blog"
+tablas_asignadas_boton_builder = ""
 tablas_asignadas_modo_app = ""
 modulePath = "/../../../../template/estandar/modulos/"
 modulePathAux = "template/estandar/modulos/"
