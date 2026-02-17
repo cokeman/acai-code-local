@@ -14,10 +14,12 @@ import socket
 import ssl
 import subprocess
 import sys
+import tempfile
 import threading
 import time
 import urllib.parse
 import urllib.request
+import zipfile
 from pathlib import Path
 
 def _get_script_dir():
@@ -232,6 +234,50 @@ def acai_web_request(domain, ssl_enabled, payload, timeout=30):
         body = e.read().decode()
         try:
             return json.loads(body)
+        except json.JSONDecodeError:
+            return {"error": "HTTP {}: {}".format(e.code, body[:200])}
+    except Exception as e:
+        return {"error": str(e)}
+
+
+def acai_web_request_zip(domain, ssl_enabled, payload, timeout=120):
+    """Download ZIP from Acai endpoint, return temp file path."""
+    scheme = "https" if ssl_enabled else "http"
+    url = "{}://{}/cms/lib/viewer_functions.php".format(scheme, domain)
+    data = json.dumps(payload).encode()
+    req = urllib.request.Request(
+        url,
+        data=data,
+        headers={
+            "Content-Type": "application/json",
+            "Content-Length": str(len(data)),
+        },
+        method="POST",
+    )
+    ctx = _get_ssl_context()
+    try:
+        with urllib.request.urlopen(req, context=ctx, timeout=timeout) as resp:
+            content_type = resp.getheader("Content-Type", "")
+            body = resp.read()
+            # If server returned JSON instead of ZIP, it's an error
+            if "application/json" in content_type:
+                try:
+                    err = json.loads(body.decode())
+                    return {"error": err.get("error", err.get("message", "Unknown error"))}
+                except json.JSONDecodeError:
+                    return {"error": "Unexpected JSON response"}
+            # Save binary to temp file
+            fd, tmp_path = tempfile.mkstemp(suffix=".zip", prefix="acai_pack_")
+            try:
+                os.write(fd, body)
+            finally:
+                os.close(fd)
+            return {"path": tmp_path}
+    except urllib.error.HTTPError as e:
+        body = e.read().decode()
+        try:
+            err = json.loads(body)
+            return {"error": err.get("error", "HTTP {}".format(e.code))}
         except json.JSONDecodeError:
             return {"error": "HTTP {}: {}".format(e.code, body[:200])}
     except Exception as e:
@@ -1116,7 +1162,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
         })
 
     def handle_acai_pull_web(self, body):
-        """Pull a web from Acai: create slim dir + download modules, hooks, layout."""
+        """Pull a web from Acai: download ZIP via getAcaiPackFiles and extract."""
         domain = body.get("domain", "")
         ssl_enabled = str(body.get("ssl", "1")) != "0"
         token = body.get("token", "")
@@ -1134,21 +1180,13 @@ class Handler(http.server.BaseHTTPRequestHandler):
 
         dest = Path(dest_dir).expanduser().resolve()
 
-        # Check web-base exists
-        web_base = get_web_base_dir()
-        if not web_base or not web_base.exists():
-            self.send_error_json("web-base no configurado. Configúralo en Settings.")
-            return
-
         steps = []
         errors = []
-        base_payload = {"token": token, "tokenHash": token_hash}
 
-        # Step 1: Create slim directory + .acai marker
+        # Step 1: Create directory + .acai marker
         try:
             dest.mkdir(parents=True, exist_ok=True)
             acai_marker = dest / ".acai"
-            import time
             marker_data = {
                 "domain": domain,
                 "ssl": ssl_enabled,
@@ -1156,198 +1194,69 @@ class Handler(http.server.BaseHTTPRequestHandler):
             }
             with open(str(acai_marker), "w", encoding="utf-8") as f:
                 json.dump(marker_data, f, ensure_ascii=False, indent=2)
-            (dest / "modulos").mkdir(exist_ok=True)
-            (dest / "hooks").mkdir(exist_ok=True)
-            steps.append("Directorio slim creado en {}".format(dest))
+            steps.append("Directorio creado en {}".format(dest))
         except Exception as e:
             self.send_json({"success": False, "error": "Error creando directorio: {}".format(e)})
             return
 
-        # Step 2: Get layout data
-        layout_data = None
+        # Step 2: Download ZIP via getAcaiPackFiles
+        zip_path = None
         try:
-            payload = dict(base_payload, action_ws="getLayoutData")
-            result = acai_web_request(domain, ssl_enabled, payload, timeout=30)
-            if result.get("data"):
-                layout_data = result["data"]
-                layout_path = dest / "layout.json"
-                with open(str(layout_path), "w", encoding="utf-8") as f:
-                    json.dump(layout_data, f, ensure_ascii=False, indent=2)
-                steps.append("Layout descargado")
-            else:
-                errors.append("getLayoutData: {}".format(
-                    result.get("error", {}).get("message", "sin datos") if isinstance(result.get("error"), dict)
-                    else result.get("error", "sin datos")
-                ))
+            payload = {
+                "action_ws": "getAcaiPackFiles",
+                "token": token,
+                "tokenHash": token_hash,
+                "uploads": include_uploads,
+            }
+            result = acai_web_request_zip(domain, ssl_enabled, payload, timeout=120)
+            if result.get("error"):
+                self.send_json({"success": False, "error": "getAcaiPackFiles: {}".format(result["error"])})
+                return
+            zip_path = result["path"]
+            steps.append("ZIP descargado")
         except Exception as e:
-            errors.append("Layout: {}".format(e))
+            self.send_json({"success": False, "error": "Error descargando ZIP: {}".format(e)})
+            return
 
-        # Step 3: Get hooks data and save as files
-        hooks_count = 0
+        # Step 3: Extract ZIP to destination
         try:
-            payload = dict(base_payload, action_ws="getHooksData")
-            result = acai_web_request(domain, ssl_enabled, payload, timeout=30)
-            hooks_data = result.get("data", [])
-            if isinstance(hooks_data, list) and hooks_data:
-                hooks_dir = str(dest / "hooks")
-                hooks_count = save_hooks_from_api(hooks_data, hooks_dir)
-                steps.append("{} hooks descargados".format(hooks_count))
-            else:
-                steps.append("Sin hooks")
+            with zipfile.ZipFile(zip_path, "r") as zf:
+                zf.extractall(str(dest))
+            steps.append("ZIP extraido")
+        except zipfile.BadZipFile:
+            self.send_json({"success": False, "error": "El servidor no devolvio un ZIP valido"})
+            return
         except Exception as e:
-            errors.append("Hooks: {}".format(e))
+            self.send_json({"success": False, "error": "Error extrayendo ZIP: {}".format(e)})
+            return
+        finally:
+            # Clean up temp file
+            try:
+                os.unlink(zip_path)
+            except OSError:
+                pass
 
-        # Step 4: Get all modules via getModuleSchemas (single request)
+        # Count results from extracted directories
         modules_count = 0
-        module_errors = []
-        try:
-            payload = dict(base_payload, action_ws="getModuleSchemas", full=True, twig=True)
-            result = acai_web_request(domain, ssl_enabled, payload, timeout=60)
-
-            modules_data = result.get("modules", {})
-            if isinstance(modules_data, dict) and modules_data:
-                steps.append("{} modulos encontrados".format(len(modules_data)))
-
-                modules_dir = dest / "modulos"
-                # Clean existing modules
-                if modules_dir.exists():
-                    shutil.rmtree(str(modules_dir))
-                modules_dir.mkdir(parents=True, exist_ok=True)
-
-                # Fields that are file content, not part of builder.json
-                _file_fields = {
-                    "htmlData", "htmlDataTWIG", "htmlDataParsed",
-                    "styleData", "styleFilename",
-                    "javascriptData", "javascriptFilename",
-                    "hookData", "hookFilename",
-                    "ampHtmlData", "imageData",
-                    "id", "path", "builderVue",
-                }
-
-                for mod_key, mod_schema in modules_data.items():
-                    mod_name = mod_key.replace(".tpl", "")
-                    mod_dir = modules_dir / mod_name
-                    try:
-                        mod_dir.mkdir(parents=True, exist_ok=True)
-
-                        # Write builder.json (schema fields only)
-                        schema = {k: v for k, v in mod_schema.items() if k not in _file_fields}
-                        with open(str(mod_dir / "builder.json"), "w", encoding="utf-8") as f:
-                            json.dump(schema, f, ensure_ascii=False, indent=2)
-
-                        # Write template files
-                        if mod_schema.get("htmlData"):
-                            with open(str(mod_dir / "index-base.tpl"), "w", encoding="utf-8") as f:
-                                f.write(mod_schema["htmlData"])
-                        if mod_schema.get("htmlDataTWIG"):
-                            with open(str(mod_dir / "index-twig.tpl"), "w", encoding="utf-8") as f:
-                                f.write(mod_schema["htmlDataTWIG"])
-                        if mod_schema.get("styleData"):
-                            with open(str(mod_dir / "style.css"), "w", encoding="utf-8") as f:
-                                f.write(mod_schema["styleData"])
-                        if mod_schema.get("javascriptData"):
-                            with open(str(mod_dir / "script.js"), "w", encoding="utf-8") as f:
-                                f.write(mod_schema["javascriptData"])
-                        if mod_schema.get("hookData"):
-                            with open(str(mod_dir / "hook.php"), "w", encoding="utf-8") as f:
-                                f.write(mod_schema["hookData"])
-                        if mod_schema.get("ampHtmlData"):
-                            with open(str(mod_dir / "amp-base.tpl"), "w", encoding="utf-8") as f:
-                                f.write(mod_schema["ampHtmlData"])
-                        if mod_schema.get("imageData"):
-                            with open(str(mod_dir / "thumbnail.jpg"), "wb") as f:
-                                f.write(base64.b64decode(mod_schema["imageData"]))
-
-                        modules_count += 1
-                    except Exception as e:
-                        module_errors.append("{}: {}".format(mod_name, e))
-
-                steps.append("{} modulos descargados".format(modules_count))
-                if module_errors:
-                    errors.append("Modulos con error: {}".format(", ".join(str(e) for e in module_errors)))
-            elif isinstance(result, dict) and result.get("error"):
-                errors.append("getModuleSchemas: {}".format(result.get("error")))
-            else:
-                steps.append("Sin modulos")
-        except Exception as e:
-            errors.append("Modulos: {}".format(e))
-
-        # Step 4b: Create custom-header and custom-footer from layout data
-        if layout_data:
-            try:
-                modules_dir = dest / "modulos"
-                modules_dir.mkdir(parents=True, exist_ok=True)
-                for name, real_key in [
-                    ("custom-header-twig", "real_header"),
-                    ("custom-footer-twig", "real_footer"),
-                ]:
-                    real_content = layout_data.get(real_key, "")
-                    if real_content:
-                        mod_dir = modules_dir / name
-                        mod_dir.mkdir(parents=True, exist_ok=True)
-                        converted = _convert_real_to_twig(real_content)
-                        with open(str(mod_dir / "index-base.tpl"), "w", encoding="utf-8") as f:
-                            f.write(converted)
-                steps.append("custom-header y custom-footer creados")
-            except Exception as e:
-                errors.append("Header/Footer: {}".format(e))
-
-        # Step 5: Get general sections (custom-* modules)
-        general_count = 0
-        try:
-            payload = dict(base_payload, action_ws="getGeneralSections")
-            result = acai_web_request(domain, ssl_enabled, payload, timeout=30)
-            sections = result.get("modules", {})
-            if isinstance(sections, dict) and sections:
-                modules_dir = dest / "modulos"
-                modules_dir.mkdir(parents=True, exist_ok=True)
-                for mod_name, mod_data in sections.items():
-                    try:
-                        html = mod_data.get("htmlData", "") if isinstance(mod_data, dict) else ""
-                        if html:
-                            mod_dir = modules_dir / mod_name
-                            mod_dir.mkdir(parents=True, exist_ok=True)
-                            with open(str(mod_dir / "index-base.tpl"), "w", encoding="utf-8") as f:
-                                f.write(html)
-                            twig = mod_data.get("twigData", "")
-                            if twig:
-                                with open(str(mod_dir / "index-twig.tpl"), "w", encoding="utf-8") as f:
-                                    f.write(twig)
-                            general_count += 1
-                    except Exception as e:
-                        errors.append("General {}: {}".format(mod_name, e))
-                steps.append("{} secciones generales descargadas".format(general_count))
-        except Exception as e:
-            errors.append("General sections: {}".format(e))
-
-        # Step 6: Uploads (optional, file by file — slow)
+        hooks_count = 0
         uploads_count = 0
-        if include_uploads:
-            try:
-                payload = dict(base_payload, action_ws="getFTPFiles", path="cms/uploads/")
-                result = acai_web_request(domain, ssl_enabled, payload, timeout=30)
-                if isinstance(result, list):
-                    uploads_dir = dest / "uploads"
-                    uploads_dir.mkdir(parents=True, exist_ok=True)
-                    for entry in result:
-                        fname = entry.get("filename", "")
-                        if entry.get("isDir") or fname in (".", ".."):
-                            continue
-                        try:
-                            fp = dict(base_payload, action_ws="getFTPFiles", path="cms/uploads/" + fname)
-                            fr = acai_web_request(domain, ssl_enabled, fp, timeout=30)
-                            if isinstance(fr, dict) and fr.get("content"):
-                                filepath = uploads_dir / fname
-                                with open(str(filepath), "w", encoding="utf-8") as f:
-                                    f.write(fr["content"])
-                                uploads_count += 1
-                        except Exception:
-                            pass
-                    steps.append("{} uploads descargados".format(uploads_count))
-            except Exception as e:
-                errors.append("Uploads: {}".format(e))
 
-        # Step 7: Mysqldump (optional, if db_password provided)
+        modulos_dir = dest / "modulos"
+        if modulos_dir.is_dir():
+            modules_count = sum(1 for x in modulos_dir.iterdir() if x.is_dir())
+        steps.append("{} modulos".format(modules_count))
+
+        hooks_dir = dest / "hooks"
+        if hooks_dir.is_dir():
+            hooks_count = sum(1 for x in hooks_dir.iterdir() if x.is_file())
+        steps.append("{} hooks".format(hooks_count))
+
+        uploads_dir = dest / "uploads"
+        if uploads_dir.is_dir():
+            uploads_count = sum(1 for x in uploads_dir.rglob("*") if x.is_file())
+            steps.append("{} uploads".format(uploads_count))
+
+        # Step 4: Mysqldump (optional, if db_password provided)
         has_db = False
         db_password = body.get("db_password", "")
         if db_password:
@@ -1357,8 +1266,6 @@ class Handler(http.server.BaseHTTPRequestHandler):
             if db_host and db_user and db_name:
                 try:
                     dump_file = dest / "database.sql"
-                    # Try local mysqldump first, fall back to docker
-                    mysqldump_cmd = None
                     rc_which, _, _ = run_cmd(["which", "mysqldump"])
                     if rc_which == 0:
                         mysqldump_cmd = [
@@ -1387,7 +1294,6 @@ class Handler(http.server.BaseHTTPRequestHandler):
 
                     rc, out, err = run_cmd(mysqldump_cmd, timeout=120)
                     if rc == 0 and out.strip():
-                        # Clean DEFINERs
                         clean_dump = re.sub(
                             r'/\*![0-9]+ DEFINER=`[^`]*`@`[^`]*`\*/',
                             '',
