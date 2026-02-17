@@ -224,9 +224,10 @@ fi
 # ---- Buscar puertos libres ----
 
 WEB_PORT=$(find_free_port 8080)
+HTTPS_PORT=$(find_free_port 8443)
 DB_PORT=$(find_free_port 33060)
 
-msg "Puertos asignados: web=$WEB_PORT, db=$DB_PORT"
+msg "Puertos asignados: web=$WEB_PORT, https=$HTTPS_PORT, db=$DB_PORT"
 
 # ---- Crear directorio .docker ----
 
@@ -319,7 +320,18 @@ RUN echo "ServerName localhost" >> /etc/apache2/apache2.conf && \\
 RUN apt-get update && apt-get install -y mariadb-client && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /var/www/html
-EXPOSE 80
+
+# SSL autofirmado para desarrollo local
+RUN a2enmod ssl && \\
+    openssl req -x509 -nodes -days 3650 -newkey rsa:2048 \\
+      -keyout /etc/ssl/private/localhost.key \\
+      -out /etc/ssl/certs/localhost.crt \\
+      -subj "/CN=localhost" && \\
+    sed -i 's|SSLCertificateFile.*|SSLCertificateFile /etc/ssl/certs/localhost.crt|' /etc/apache2/sites-available/default-ssl.conf && \\
+    sed -i 's|SSLCertificateKeyFile.*|SSLCertificateKeyFile /etc/ssl/private/localhost.key|' /etc/apache2/sites-available/default-ssl.conf && \\
+    a2ensite default-ssl
+
+EXPOSE 80 443
 EOF
 
 msg "Generado Dockerfile"
@@ -363,7 +375,7 @@ if $ACAI_MODE; then
         exit 1
     fi
     mkdir -p "$PROJECT_DIR/modulos" "$PROJECT_DIR/hooks" "$PROJECT_DIR/uploads"
-    WEB_VOLUMES="      - ${WEB_BASE_DIR}:/var/www/html:ro
+    WEB_VOLUMES="      - ${WEB_BASE_DIR}:/var/www/html
       - ${WEB_BASE_DIR}:/web-base-src:ro
       - ./init.sh:/docker-entrypoint-init.d/init.sh
       - ${PROJECT_DIR}/modulos:/var/www/html/template/estandar/modulos
@@ -375,6 +387,9 @@ if $ACAI_MODE; then
     # Configs parcheadas (se generan mas abajo)
     WEB_VOLUMES+="
       - ./settings.dat.php:/var/www/html/cms/data/settings.dat.php
+      - ${WEB_BASE_DIR}/cms/data:/var/www/html/cmsAdmin/data
+      - ./settings.dat.php:/var/www/html/cmsAdmin/data/settings.dat.php
+      - ${WEB_BASE_DIR}/cms/lib/plugins:/var/www/html/cmsAdmin/lib/plugins
       - ./.htaccess:/var/www/html/.htaccess"
     # Caches escribibles (originales se copian desde /web-base-src al arrancar)
     WEB_VOLUMES+="
@@ -383,7 +398,9 @@ if $ACAI_MODE; then
       - acai_css_cache:/var/www/html/template/estandar/css/minified"
 else
     WEB_VOLUMES="      - ${PROJECT_DIR}:/var/www/html
-      - ./init.sh:/docker-entrypoint-init.d/init.sh"
+      - ./init.sh:/docker-entrypoint-init.d/init.sh
+      - ${PROJECT_DIR}/cms/data:/var/www/html/cmsAdmin/data
+      - ${PROJECT_DIR}/cms/lib/plugins:/var/www/html/cmsAdmin/lib/plugins"
 fi
 
 # Montar SQL si existe
@@ -443,6 +460,7 @@ services:
       docker-web-dir: "${PROJECT_DIR}"
     ports:
       - "${WEB_PORT}:80"
+      - "${HTTPS_PORT}:443"
     volumes:
 ${WEB_VOLUMES}
     environment:
@@ -585,6 +603,7 @@ echo ""
 msg "============================================"
 msg "  Proyecto: ${PROJECT_NAME}"
 msg "  Web:      http://localhost:${WEB_PORT}"
+msg "  Web SSL:  https://localhost:${HTTPS_PORT}"
 msg "  DB:       localhost:${DB_PORT}"
 msg "  DB User:  ${DB_USERNAME}"
 msg "  DB Pass:  ${DB_PASSWORD}"

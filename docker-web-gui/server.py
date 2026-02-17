@@ -430,6 +430,7 @@ def get_projects():
                 "containers": [],
                 "status": "running",
                 "web_url": "",
+                "https_url": "",
                 "db_port": "",
                 "project_dir": "",
             }
@@ -447,6 +448,9 @@ def get_projects():
             match = re.search(r"0\.0\.0\.0:(\d+)->80/tcp", ports)
             if match:
                 projects[proj]["web_url"] = "http://localhost:{}".format(match.group(1))
+            match = re.search(r"0\.0\.0\.0:(\d+)->443/tcp", ports)
+            if match:
+                projects[proj]["https_url"] = "https://localhost:{}".format(match.group(1))
 
         if name.endswith("-db"):
             match = re.search(r"0\.0\.0\.0:(\d+)->3306/tcp", ports)
@@ -766,9 +770,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if body.get("redis"):
             args.append("--redis")
 
-        # Rebuild
-        if body.get("rebuild"):
-            args.append("--rebuild")
+        # Siempre rebuild (la cache de Docker evita reconstruir si no hay cambios)
+        args.append("--rebuild")
 
         # Acai mode
         if body.get("acai") or (Path(path) / ".acai").exists():

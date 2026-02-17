@@ -1273,7 +1273,27 @@ function showPage(pageId, navEl) {
   if (page) page.classList.add('active');
   if (navEl) navEl.classList.add('active');
   if (pageId === 'settings') loadSettings();
+  // Actualizar hash sin disparar hashchange
+  history.replaceState(null, '', '#' + pageId);
 }
+
+function navigateFromHash() {
+  const hash = location.hash.replace('#', '');
+  if (!hash) return;
+  const page = document.getElementById('page-' + hash);
+  if (!page) return;
+  // Buscar el nav-item correspondiente
+  const navItems = document.querySelectorAll('.nav-item');
+  for (const nav of navItems) {
+    const onclick = nav.getAttribute('onclick') || '';
+    if (onclick.includes("'" + hash + "'")) {
+      showPage(hash, nav);
+      return;
+    }
+  }
+  showPage(hash, null);
+}
+window.addEventListener('hashchange', navigateFromHash);
 
 // ---- Acai Modal ----
 async function openAcaiModal() {
@@ -1378,6 +1398,9 @@ function renderProjectCard(p) {
   const webLink = p.web_url
     ? `<span>Web: <a href="${p.web_url}" target="_blank">${p.web_url}</a></span>`
     : '';
+  const httpsLink = p.https_url
+    ? `<span>SSL: <a href="${p.https_url}" target="_blank">${p.https_url}</a></span>`
+    : '';
   const dbInfo = p.db_port ? `<span>DB: localhost:${p.db_port}</span>` : '';
   const dirInfo = p.project_dir ? `<span>Dir: ${p.project_dir}</span>` : '';
 
@@ -1389,11 +1412,12 @@ function renderProjectCard(p) {
       <div class="project-info">
         <div class="project-name">${escapeHtml(p.name)} ${statusBadge}${acaiBadge}</div>
         <div class="project-details">
-          ${webLink} ${dbInfo} ${dirInfo}
+          ${httpsLink} ${dbInfo} ${dirInfo}
         </div>
       </div>
       <div class="project-actions">
-        ${p.web_url ? `<button class="btn btn-primary btn-sm" onclick="window.open('${p.web_url}', '_blank')">Abrir</button>` : ''}
+        ${p.https_url ? `<button class="btn btn-primary btn-sm" onclick="window.open('${p.https_url}', '_blank')">Abrir</button>` : ''}
+        ${p.https_url ? `<button class="btn btn-primary btn-sm" onclick="window.open('${p.https_url}/cmsAdmin/admin.php', '_blank')">CMS</button>` : ''}
         ${webContainerName ? `<button class="btn btn-secondary btn-sm" onclick="showLogs('${escapeHtml(webContainerName)}')">Logs</button>` : ''}
         <button class="btn btn-warning btn-sm" onclick="confirmAction('stop', '${escapeAttr(p.project_dir)}', '${escapeHtml(p.name)}')">Parar</button>
         <button class="btn btn-danger btn-sm" onclick="confirmAction('destroy', '${escapeAttr(p.project_dir)}', '${escapeHtml(p.name)}')">Destruir</button>
@@ -2142,6 +2166,7 @@ function startWatcherPolling() {
 
 // ---- Init ----
 async function initApp() {
+  navigateFromHash();
   refreshProjects();
   refreshLocalWebs();
   refreshWatcherLogs();
