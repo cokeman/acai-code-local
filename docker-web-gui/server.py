@@ -49,6 +49,9 @@ DEFAULT_CONFIG = {
     "theme": "dark",
     "web_base_dir": "",
     "docker_web_sh": "",
+    "gitea_url": "",
+    "gitea_org": "acai",
+    "gitea_username": "",
 }
 
 
@@ -456,6 +459,183 @@ def refresh_acai_token(acai_file):
     return token, ""
 
 
+def _gitea_api(method, path, token=None, data=None):
+    """Call Gitea REST API using Basic auth. Returns dict with response or {"error": "..."}."""
+    config = load_config()
+    base = config.get("gitea_url", "").rstrip("/")
+    if not base:
+        return {"error": "gitea_url not configured"}
+    url = "{}/api/v1{}".format(base, path)
+    body = json.dumps(data).encode() if data else None
+    # Use Basic auth with username + password from keychain
+    username = config.get("gitea_username", "")
+    password = keychain_get("gitea") or token or ""
+    creds = base64.b64encode("{}:{}".format(username, password).encode()).decode()
+    req = urllib.request.Request(
+        url,
+        data=body,
+        headers={
+            "Content-Type": "application/json",
+            "Authorization": "Basic {}".format(creds),
+        },
+        method=method,
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            return json.loads(resp.read().decode())
+    except urllib.error.HTTPError as e:
+        err_body = e.read().decode()
+        try:
+            return json.loads(err_body)
+        except json.JSONDecodeError:
+            return {"error": "HTTP {}: {}".format(e.code, err_body[:200])}
+    except Exception as e:
+        return {"error": str(e)}
+
+
+ACAI_GITIGNORE = """\
+# Acai local
+.docker/
+.acai
+database.sql
+*.sql.gz
+node_modules/
+.DS_Store
+Thumbs.db
+uploads/
+"""
+
+
+def _write_gitignore(dest):
+    """Write standard Acai .gitignore if it doesn't exist."""
+    gi = Path(dest) / ".gitignore"
+    if not gi.exists():
+        gi.write_text(ACAI_GITIGNORE, encoding="utf-8")
+    return str(gi)
+
+
+def _git_remote_url(config, domain):
+    """Build the Gitea remote URL with embedded credentials."""
+    gitea_url = config.get("gitea_url", "")
+    username = config.get("gitea_username", "")
+    token = keychain_get("gitea") or ""
+    org = config.get("gitea_org", "acai")
+    # URL-encode credentials to handle special chars (:, @, etc.)
+    safe_user = urllib.parse.quote(username, safe="")
+    safe_token = urllib.parse.quote(token, safe="")
+    # Parse host from URL
+    parsed = urllib.parse.urlparse(gitea_url)
+    host = parsed.netloc or parsed.path
+    scheme = parsed.scheme or "http"
+    repo_name = "sync-{}".format(domain)
+    return "{}://{}:{}@{}/{}/{}.git".format(scheme, safe_user, safe_token, host, org, repo_name)
+
+
+def _git_connect_repo(dest, domain, config, create_if_missing=False):
+    """Connect a local folder to its Gitea repo.
+
+    If create_if_missing=False (default, used during auto-pull):
+      - Only connects if the repo already exists in Gitea
+      - If repo doesn't exist, does nothing (user must click "Iniciar Git")
+
+    If create_if_missing=True (used when user clicks "Iniciar Git"):
+      - Creates the repo in Gitea if it doesn't exist
+
+    Returns list of step messages.
+    """
+    steps = []
+    password = keychain_get("gitea")
+    if not password:
+        return ["Sin token Gitea configurado"]
+
+    dest = str(dest)
+    org = config.get("gitea_org", "acai")
+    repo_name = "sync-{}".format(domain)
+
+    # 1. Check if repo exists in Gitea
+    check = _gitea_api("GET", "/repos/{}/{}".format(org, repo_name))
+    repo_exists = bool(check.get("id"))
+
+    if not repo_exists and not create_if_missing:
+        # Repo doesn't exist and we shouldn't create it — skip git setup
+        steps.append("Repo {}/{} no existe en Gitea (usa 'Iniciar Git' para crearlo)".format(org, repo_name))
+        return steps
+
+    if not repo_exists and create_if_missing:
+        # Create repo
+        repo_result = _gitea_api("POST", "/orgs/{}/repos".format(org), data={
+            "name": repo_name,
+            "private": True,
+            "auto_init": False,
+        })
+        if repo_result.get("id"):
+            steps.append("Repo creado: {}/{}".format(org, repo_name))
+            repo_exists = True
+        else:
+            err_msg = repo_result.get("error") or repo_result.get("message", "unknown")
+            steps.append("Error creando repo: {}".format(err_msg))
+            return steps
+    else:
+        steps.append("Repo existente: {}/{}".format(org, repo_name))
+
+    # 2. gitignore
+    _write_gitignore(dest)
+    steps.append(".gitignore escrito")
+
+    # 3. git init
+    rc, _, err = run_cmd(["git", "-C", dest, "init"], timeout=15)
+    if rc != 0:
+        steps.append("git init error: {}".format(err[:100]))
+        return steps
+    steps.append("git init")
+
+    # 4. Add remote
+    remote_url = _git_remote_url(config, domain)
+    run_cmd(["git", "-C", dest, "remote", "remove", "origin"], timeout=10)
+    run_cmd(["git", "-C", dest, "remote", "add", "origin", remote_url], timeout=10)
+
+    # 5. Fetch
+    rc, _, err = run_cmd(["git", "-C", dest, "fetch", "origin"], timeout=60)
+    if rc != 0:
+        steps.append("fetch error: {}".format(err[:100]))
+        return steps
+    steps.append("fetch OK")
+
+    # 6. Check if remote has a main branch with commits
+    rc_check, _, _ = run_cmd(["git", "-C", dest, "rev-parse", "origin/main"], timeout=10)
+    remote_has_commits = (rc_check == 0)
+
+    if remote_has_commits:
+        # Remote has history — align local to match it while keeping working tree files
+        run_cmd(["git", "-C", dest, "checkout", "-b", "main"], timeout=10)
+        rc, _, err = run_cmd(["git", "-C", dest, "reset", "origin/main"], timeout=15)
+        if rc == 0:
+            steps.append("Historial alineado con origin/main")
+        else:
+            steps.append("reset error: {}".format(err[:100]))
+        # Set upstream tracking
+        run_cmd(["git", "-C", dest, "branch", "--set-upstream-to=origin/main", "main"], timeout=10)
+        rc, status_out, _ = run_cmd(["git", "-C", dest, "status", "--porcelain"], timeout=10)
+        if rc == 0:
+            changed = len([l for l in status_out.strip().splitlines() if l.strip()]) if status_out.strip() else 0
+            if changed > 0:
+                steps.append("{} archivos locales difieren del repo".format(changed))
+            else:
+                steps.append("Archivos locales coinciden con el repo")
+    else:
+        # Remote is empty — initial commit + push
+        run_cmd(["git", "-C", dest, "add", "."], timeout=30)
+        run_cmd(["git", "-C", dest, "branch", "-M", "main"], timeout=10)
+        run_cmd(["git", "-C", dest, "commit", "-m", "Initial commit"], timeout=30)
+        rc, _, err = run_cmd(["git", "-C", dest, "push", "-u", "origin", "main"], timeout=60)
+        if rc == 0:
+            steps.append("Push inicial OK")
+        else:
+            steps.append("Push error: {}".format(err[:100]))
+
+    return steps
+
+
 def _docker_web_env():
     """Build env dict for docker-web.sh with WEB_BASE_DIR set."""
     env = dict(os.environ)
@@ -687,6 +867,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self.handle_get_settings()
         elif path == "/api/settings/passwords":
             self.handle_get_passwords()
+        elif path == "/api/git/status":
+            self.handle_git_status(qs)
         elif path == "/api/watcher-logs":
             self.handle_watcher_logs()
         elif path.startswith("/local/"):
@@ -719,6 +901,14 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self.handle_acai_pull_web(body)
         elif path == "/api/settings":
             self.handle_save_settings(body)
+        elif path == "/api/git/init":
+            self.handle_git_init(body)
+        elif path == "/api/git/push":
+            self.handle_git_push(body)
+        elif path == "/api/git/pull":
+            self.handle_git_pull(body)
+        elif path == "/api/gitea/test":
+            self.handle_gitea_test(body)
         elif path.startswith("/local/"):
             self.handle_local_proxy("POST")
         else:
@@ -978,6 +1168,23 @@ class Handler(http.server.BaseHTTPRequestHandler):
             if d:
                 running_dirs.add(d)
 
+        # Fetch existing Gitea repos in one API call
+        gitea_repos = set()
+        config = load_config()
+        if config.get("gitea_url") and config.get("gitea_username") and keychain_get("gitea"):
+            org = config.get("gitea_org", "acai")
+            page = 1
+            while True:
+                result = _gitea_api("GET", "/orgs/{}/repos?page={}&limit=50".format(org, page))
+                if isinstance(result, list):
+                    for r in result:
+                        gitea_repos.add(r.get("name", ""))
+                    if len(result) < 50:
+                        break
+                    page += 1
+                else:
+                    break
+
         webs = []
         try:
             for item in sorted(webs_dir.iterdir()):
@@ -988,6 +1195,27 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     mtime = stat.st_mtime
                 except OSError:
                     mtime = 0
+                git_dir = item / ".git"
+                has_git = git_dir.is_dir()
+                git_clean = False
+                git_changed = 0
+                git_ahead = 0
+                git_behind = 0
+                if has_git:
+                    rc, out, _ = run_cmd(["git", "-C", str(item), "status", "--porcelain"], timeout=10)
+                    git_clean = (rc == 0 and out.strip() == "")
+                    if not git_clean and rc == 0:
+                        git_changed = len([l for l in out.strip().splitlines() if l.strip()])
+                    # ahead/behind
+                    rc_ab, ab_out, _ = run_cmd(["git", "-C", str(item), "rev-list", "--left-right", "--count", "HEAD...@{upstream}"], timeout=10)
+                    if rc_ab == 0 and ab_out.strip():
+                        parts = ab_out.strip().split()
+                        if len(parts) == 2:
+                            try:
+                                git_ahead = int(parts[0])
+                                git_behind = int(parts[1])
+                            except ValueError:
+                                pass
                 entry = {
                     "name": item.name,
                     "path": str(item),
@@ -995,6 +1223,12 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     "running": str(item) in running_dirs,
                     "acai": (item / ".acai").is_file(),
                     "has_db": (item / "database.sql").is_file(),
+                    "has_git": has_git,
+                    "git_clean": git_clean,
+                    "git_changed": git_changed,
+                    "git_ahead": git_ahead,
+                    "git_behind": git_behind,
+                    "git_remote_exists": "sync-{}".format(item.name) in gitea_repos,
                 }
                 # Count modules, hooks, assets
                 modulos_dir = item / "modulos"
@@ -1080,6 +1314,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
         config = load_config()
         config["has_acai_password"] = keychain_get("acai") is not None
         config["has_mysql_password"] = keychain_get("mysql") is not None
+        config["has_gitea_password"] = keychain_get("gitea") is not None
         self.send_json(config)
 
     def handle_save_settings(self, body):
@@ -1102,6 +1337,12 @@ class Handler(http.server.BaseHTTPRequestHandler):
             config["web_base_dir"] = body["web_base_dir"]
         if "docker_web_sh" in body:
             config["docker_web_sh"] = body["docker_web_sh"]
+        if "gitea_url" in body:
+            config["gitea_url"] = body["gitea_url"].rstrip("/")
+        if "gitea_org" in body:
+            config["gitea_org"] = body["gitea_org"]
+        if "gitea_username" in body:
+            config["gitea_username"] = body["gitea_username"]
 
         try:
             save_config(config)
@@ -1122,6 +1363,12 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 keychain_set("mysql", pw)
             else:
                 keychain_delete("mysql")
+        if "gitea_password" in body:
+            pw = body["gitea_password"]
+            if pw:
+                keychain_set("gitea", pw)
+            else:
+                keychain_delete("gitea")
 
         self.send_json({"success": True})
 
@@ -1440,6 +1687,15 @@ class Handler(http.server.BaseHTTPRequestHandler):
             else:
                 errors.append("mysqldump: faltan credenciales (host/user/db)")
 
+        # Auto-connect git if Gitea is configured
+        config = load_config()
+        git_steps = []
+        if config.get("gitea_url") and config.get("gitea_username"):
+            try:
+                git_steps = _git_connect_repo(dest, domain, config)
+            except Exception as e:
+                git_steps.append("git auto-init error: {}".format(e))
+
         self.send_json({
             "success": True,
             "acai": True,
@@ -1448,9 +1704,193 @@ class Handler(http.server.BaseHTTPRequestHandler):
             "hooks_count": hooks_count,
             "uploads_count": uploads_count,
             "has_db": has_db,
-            "steps": steps,
+            "steps": steps + git_steps,
             "errors": errors,
         })
+
+    # ---- Git / Gitea ----
+
+    def handle_git_status(self, qs):
+        """GET /api/git/status?path=... — return git status for a folder."""
+        raw = qs.get("path", [""])[0]
+        if not raw:
+            self.send_error_json("path is required")
+            return
+        path = sanitize_path(raw)
+        if not path:
+            self.send_error_json("Invalid path")
+            return
+        git_dir = Path(path) / ".git"
+        if not git_dir.is_dir():
+            self.send_json({"has_git": False})
+            return
+        # Branch
+        rc, branch_out, _ = run_cmd(["git", "-C", path, "rev-parse", "--abbrev-ref", "HEAD"], timeout=10)
+        branch = branch_out.strip() if rc == 0 else "unknown"
+        # Status
+        rc, status_out, _ = run_cmd(["git", "-C", path, "status", "--porcelain"], timeout=10)
+        clean = (rc == 0 and status_out.strip() == "")
+        changed_files = [l.strip() for l in status_out.strip().splitlines() if l.strip()] if status_out.strip() else []
+        # Log
+        rc, log_out, _ = run_cmd(["git", "-C", path, "log", "--oneline", "-5"], timeout=10)
+        last_commits = [l.strip() for l in log_out.strip().splitlines() if l.strip()] if rc == 0 else []
+        # Ahead/behind
+        ahead = 0
+        behind = 0
+        rc, ab_out, _ = run_cmd(["git", "-C", path, "rev-list", "--left-right", "--count", "HEAD...@{upstream}"], timeout=10)
+        if rc == 0 and ab_out.strip():
+            parts = ab_out.strip().split()
+            if len(parts) == 2:
+                try:
+                    ahead = int(parts[0])
+                    behind = int(parts[1])
+                except ValueError:
+                    pass
+        self.send_json({
+            "has_git": True,
+            "branch": branch,
+            "clean": clean,
+            "ahead": ahead,
+            "behind": behind,
+            "last_commits": last_commits,
+            "changed_files": changed_files[:20],
+        })
+
+    def handle_git_init(self, body):
+        """POST /api/git/init — connect a web folder to its Gitea repo."""
+        path = body.get("path", "")
+        domain = body.get("domain", "")
+        if not path or not domain:
+            self.send_error_json("path and domain are required")
+            return
+        safe = sanitize_path(path)
+        if not safe:
+            self.send_error_json("Invalid path")
+            return
+        config = load_config()
+        if not config.get("gitea_url") or not keychain_get("gitea"):
+            self.send_error_json("Gitea no configurado. Ve a Ajustes > Git Sync.")
+            return
+        try:
+            steps = _git_connect_repo(safe, domain, config, create_if_missing=True)
+            self.send_json({"success": True, "steps": steps})
+        except Exception as e:
+            self.send_json({"success": False, "error": str(e)})
+
+    def _ensure_git_remote(self, safe):
+        """Update origin remote URL from current config (handles password changes)."""
+        config = load_config()
+        if not config.get("gitea_url") or not config.get("gitea_username"):
+            return
+        # Detect domain from folder name
+        domain = Path(safe).name
+        remote_url = _git_remote_url(config, domain)
+        run_cmd(["git", "-C", safe, "remote", "set-url", "origin", remote_url], timeout=10)
+
+    @staticmethod
+    def _git_branch(safe):
+        """Return current branch name, defaulting to 'main'."""
+        rc, out, _ = run_cmd(["git", "-C", safe, "rev-parse", "--abbrev-ref", "HEAD"], timeout=10)
+        branch = out.strip() if rc == 0 and out.strip() and out.strip() != "HEAD" else ""
+        return branch or "main"
+
+    def handle_git_push(self, body):
+        """POST /api/git/push — add, commit, push."""
+        path = body.get("path", "")
+        if not path:
+            self.send_error_json("path is required")
+            return
+        safe = sanitize_path(path)
+        if not safe:
+            self.send_error_json("Invalid path")
+            return
+        self._ensure_git_remote(safe)
+        steps = []
+        # Check if there are changes
+        rc, status_out, _ = run_cmd(["git", "-C", safe, "status", "--porcelain"], timeout=10)
+        if rc == 0 and status_out.strip():
+            run_cmd(["git", "-C", safe, "add", "."], timeout=30)
+            # Ensure branch is "main" (handles fresh repos with no commits)
+            run_cmd(["git", "-C", safe, "branch", "-M", "main"], timeout=10)
+            rc, _, err = run_cmd(["git", "-C", safe, "commit", "-m", "Sync from local"], timeout=30)
+            if rc == 0:
+                steps.append("Commit creado")
+            else:
+                steps.append("Commit: {}".format(err[:100]))
+        else:
+            steps.append("Sin cambios locales")
+        # Push
+        branch = self._git_branch(safe)
+        rc, out, err = run_cmd(["git", "-C", safe, "push", "-u", "origin", branch], timeout=60)
+        if rc != 0 and ("403" in err or "not found" in err.lower() or "create" in err.lower()):
+            # Repo might not exist yet — try to create it and retry
+            config = load_config()
+            org = config.get("gitea_org", "acai")
+            domain = Path(safe).name
+            repo_name = "sync-{}".format(domain)
+            _gitea_api("POST", "/orgs/{}/repos".format(org), data={
+                "name": repo_name,
+                "private": True,
+                "auto_init": False,
+            })
+            steps.append("Repo creado en Gitea")
+            rc, out, err = run_cmd(["git", "-C", safe, "push", "-u", "origin", branch], timeout=60)
+        if rc == 0:
+            steps.append("Push OK")
+        else:
+            self.send_json({"success": False, "error": "Push: {}".format(err[:200]), "steps": steps})
+            return
+        self.send_json({"success": True, "steps": steps, "output": out})
+
+    def handle_git_pull(self, body):
+        """POST /api/git/pull — pull from remote."""
+        path = body.get("path", "")
+        if not path:
+            self.send_error_json("path is required")
+            return
+        safe = sanitize_path(path)
+        if not safe:
+            self.send_error_json("Invalid path")
+            return
+        self._ensure_git_remote(safe)
+        branch = self._git_branch(safe)
+        rc, out, err = run_cmd(["git", "-C", safe, "pull", "origin", branch, "--rebase"], timeout=60)
+        if rc == 0:
+            self.send_json({"success": True, "output": out or "Already up to date."})
+        else:
+            self.send_json({"success": False, "error": err[:300], "output": out})
+
+    def handle_gitea_test(self, body):
+        """POST /api/gitea/test — test Gitea connection using token auth."""
+        gitea_url = body.get("gitea_url", "").rstrip("/")
+        gitea_username = body.get("gitea_username", "")
+        gitea_password = body.get("gitea_password", "")
+        if not gitea_url or not gitea_username or not gitea_password:
+            self.send_error_json("gitea_url, gitea_username, and gitea_password are required")
+            return
+        # First create a token via basic auth, or just test with basic auth
+        url = "{}/api/v1/user".format(gitea_url)
+        creds = base64.b64encode("{}:{}".format(gitea_username, gitea_password).encode()).decode()
+        req = urllib.request.Request(
+            url,
+            headers={
+                "Authorization": "Basic {}".format(creds),
+                "Content-Type": "application/json",
+            },
+            method="GET",
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=10) as resp:
+                data = json.loads(resp.read().decode())
+            self.send_json({
+                "success": True,
+                "user": data.get("login", data.get("username", "")),
+                "full_name": data.get("full_name", ""),
+            })
+        except urllib.error.HTTPError as e:
+            self.send_json({"success": False, "error": "HTTP {}: Auth failed".format(e.code)})
+        except Exception as e:
+            self.send_json({"success": False, "error": str(e)})
 
 
 # ---- Module watcher ----

@@ -603,6 +603,22 @@ input:read-only { opacity: 0.5; cursor: default; }
   color: var(--accent);
   font-weight: 600;
 }
+.badge-git {
+  font-size: 10px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: rgba(240,80,50,0.15);
+  color: #f05032;
+  font-weight: 600;
+}
+.badge-git-clean {
+  background: var(--green-dim);
+  color: var(--green);
+}
+.badge-git-dirty {
+  background: rgba(234,179,8,0.18);
+  color: #eab308;
+}
 
 .acai-logged-bar {
   display: flex;
@@ -674,37 +690,60 @@ input:read-only { opacity: 0.5; cursor: default; }
 .local-webs-grid {
   display: grid;
   grid-template-columns: 1fr;
-  gap: 10px;
+  gap: 12px;
 }
 .local-web-card {
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
-  padding: 14px 20px;
+  padding: 18px 22px;
   display: flex;
-  align-items: center;
-  gap: 16px;
+  flex-direction: column;
+  gap: 14px;
   transition: border-color var(--transition);
 }
 .local-web-card:hover { border-color: var(--border-hover); }
-.local-web-info { flex: 1; min-width: 0; }
+
+/* Row 1: header — name + badges left, date right */
+.local-web-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
 .local-web-name {
   font-weight: 600;
-  font-size: 14px;
-  margin-bottom: 3px;
+  font-size: 15px;
   display: flex;
   align-items: center;
   gap: 8px;
+  flex-wrap: wrap;
+  min-width: 0;
 }
-.local-web-meta {
+.local-web-date {
   font-size: 12px;
-  color: var(--text2);
+  color: var(--text3);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.local-web-path {
+  font-size: 12px;
+  color: var(--text3);
   word-break: break-all;
+  margin-top: -6px;
+}
+
+/* Row 2: stats + git status */
+.local-web-middle {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
 }
 .local-web-stats {
   display: flex;
   gap: 8px;
-  margin-top: 8px;
+  flex-wrap: wrap;
 }
 .local-web-stats .stat-box {
   display: flex;
@@ -730,11 +769,25 @@ input:read-only { opacity: 0.5; cursor: default; }
 .local-web-stats .stat-box.stat-hooks   { border-color: rgba(168,85,247,0.3); background: rgba(168,85,247,0.06); }
 .local-web-stats .stat-box.stat-assets  { border-color: rgba(34,197,94,0.3);  background: rgba(34,197,94,0.06);  }
 .local-web-stats .stat-box.stat-db      { border-color: rgba(249,115,22,0.3); background: rgba(249,115,22,0.06); }
+
+/* Git status inline pill */
+.local-web-git {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+}
+
+/* Row 3: actions */
 .local-web-actions {
   display: flex;
-  gap: 6px;
-  flex-shrink: 0;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+  padding-top: 4px;
+  border-top: 1px solid var(--border);
 }
+.local-web-actions-spacer { flex: 1; }
 
 /* ---- Modal ---- */
 .modal-overlay {
@@ -1108,51 +1161,9 @@ input:read-only { opacity: 0.5; cursor: default; }
 
       <!-- Acai connection bar -->
       <div class="acai-conn-bar" id="acaiConnBar">
-        <div id="acaiConnNone" style="display:flex;align-items:center;justify-content:space-between;width:100%;">
-          <span style="color:var(--text2);">Sin conexion a Acai Code</span>
-          <button class="btn btn-primary btn-sm" onclick="openAcaiModal()">Conectar</button>
-        </div>
-        <div id="acaiConnOk" style="display:none;align-items:center;justify-content:space-between;width:100%;">
-          <div style="display:flex;align-items:center;gap:8px;">
-            <span class="acai-dot connected"></span>
-            <span>Conectado a <strong id="acaiConnDomainName"></strong></span>
-          </div>
-          <div style="display:flex;gap:6px;">
-            <button class="btn btn-ghost btn-xs" onclick="openAcaiModal()">Cambiar</button>
-            <button class="btn btn-ghost btn-xs" onclick="acaiLogout()">Desconectar</button>
-          </div>
-        </div>
-      </div>
-
-      <!-- Pull card (visible after domain selection) -->
-      <div class="card" id="pullCard" style="display:none;">
-        <div class="card-header">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-          Traer Web
-        </div>
-        <div class="card-body">
-          <div class="form-row full">
-            <div class="form-group">
-              <label>Directorio destino</label>
-              <input type="text" id="pullDestDir" placeholder="~/webs/dominio.com">
-            </div>
-          </div>
-          <div class="toggle-row">
-            <div class="toggle-switch" id="toggleUploads" onclick="this.classList.toggle('on')"></div>
-            <span class="toggle-label">Incluir uploads (imagenes, archivos subidos)</span>
-          </div>
-          <div class="form-row full" style="margin-top:4px">
-            <div class="form-group">
-              <label>Clave MySQL</label>
-              <input type="password" id="pullDbPassword" placeholder="Password de la base de datos">
-            </div>
-          </div>
-          <div class="actions-row" style="margin-top:8px">
-            <button class="btn btn-primary" id="pullWebBtn" onclick="pullWeb()">Traer Web</button>
-          </div>
-          <div class="output-panel" id="pullWebOutput">
-            <div class="log-output" id="pullWebLog"></div>
-          </div>
+        <div style="display:flex;align-items:center;justify-content:space-between;width:100%;">
+          <span style="color:var(--text2);">Traer web desde Acai Code</span>
+          <button class="btn btn-primary btn-sm" onclick="openAcaiModal()">Traer Web</button>
         </div>
       </div>
 
@@ -1278,6 +1289,44 @@ input:read-only { opacity: 0.5; cursor: default; }
         </div>
       </div>
 
+      <div class="card">
+        <div class="card-header">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="18" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><path d="M13 6h3a2 2 0 0 1 2 2v7"/><path d="M6 9v12"/></svg>
+          Git Sync (Gitea)
+        </div>
+        <div class="card-body">
+          <div class="form-row full">
+            <div class="form-group">
+              <label>URL Gitea</label>
+              <input type="text" id="settingsGiteaUrl" placeholder="http://46.101.52.52:3000">
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label>Organizacion</label>
+              <input type="text" id="settingsGiteaOrg" placeholder="acai">
+            </div>
+            <div class="form-group">
+              <label>Usuario Gitea</label>
+              <input type="text" id="settingsGiteaUsername" placeholder="superadmin">
+            </div>
+          </div>
+          <div class="form-row full">
+            <div class="form-group">
+              <label>Token / Contraseña Gitea</label>
+              <input type="password" id="settingsGiteaPassword" placeholder="Sin contraseña guardada">
+            </div>
+          </div>
+          <div class="actions-row">
+            <button class="btn btn-secondary" onclick="testGiteaConnection()">Probar conexion</button>
+            <button class="btn btn-primary" onclick="saveSettingsGitea()">Guardar</button>
+            <span id="settingsGiteaStatus" style="font-size:13px;color:var(--green);display:none;">Guardado</span>
+            <span id="settingsGiteaTestStatus" style="font-size:13px;display:none;"></span>
+          </div>
+          <p style="color:var(--text3); font-size:12px; margin-top:12px;">Configura Gitea para sincronizar webs via Git. El token se guarda en el Keychain.</p>
+        </div>
+      </div>
+
     </div>
   </div>
 
@@ -1348,11 +1397,11 @@ input:read-only { opacity: 0.5; cursor: default; }
 <div class="modal-overlay" id="acaiModal">
   <div class="modal" style="max-width: 520px;">
     <div class="modal-header">
-      <span>Acai Code</span>
+      <span id="acaiModalTitle">Traer Web</span>
       <button class="modal-close" onclick="closeModal('acaiModal')">&times;</button>
     </div>
     <div class="modal-body">
-      <!-- Login -->
+      <!-- Step 1: Login -->
       <div id="acaiLoginSection">
         <div class="form-row full">
           <div class="form-group">
@@ -1371,7 +1420,7 @@ input:read-only { opacity: 0.5; cursor: default; }
         </div>
         <div id="acaiLoginStatus"></div>
       </div>
-      <!-- Domains -->
+      <!-- Step 2: Domains -->
       <div id="acaiDomainsSection" style="display:none">
         <div class="acai-logged-bar">
           <div>Conectado como <span class="acai-user" id="acaiUserLabel"></span></div>
@@ -1380,6 +1429,38 @@ input:read-only { opacity: 0.5; cursor: default; }
         <div style="margin-bottom:10px; font-size:13px; color:var(--text2);">Selecciona una web:</div>
         <div class="acai-domains-grid" id="acaiDomainsList"></div>
         <div id="acaiDomainStatus"></div>
+      </div>
+      <!-- Step 3: Pull config -->
+      <div id="acaiPullSection" style="display:none">
+        <div class="acai-logged-bar" style="margin-bottom:12px;">
+          <div style="display:flex;align-items:center;gap:8px;">
+            <span class="acai-dot connected"></span>
+            <strong id="acaiPullDomainName"></strong>
+          </div>
+          <button class="btn btn-ghost btn-sm" onclick="acaiBackToDomains()">Cambiar web</button>
+        </div>
+        <div class="form-row full">
+          <div class="form-group">
+            <label>Directorio destino</label>
+            <input type="text" id="pullDestDir" placeholder="~/webs/dominio.com">
+          </div>
+        </div>
+        <div class="toggle-row">
+          <div class="toggle-switch" id="toggleUploads" onclick="this.classList.toggle('on')"></div>
+          <span class="toggle-label">Incluir uploads (imagenes, archivos subidos)</span>
+        </div>
+        <div class="form-row full" style="margin-top:4px">
+          <div class="form-group">
+            <label>Clave MySQL</label>
+            <input type="password" id="pullDbPassword" placeholder="Password de la base de datos">
+          </div>
+        </div>
+        <div class="actions-row" style="margin-top:8px">
+          <button class="btn btn-primary" id="pullWebBtn" onclick="pullWeb()">Traer Web</button>
+        </div>
+        <div class="output-panel" id="pullWebOutput">
+          <div class="log-output" id="pullWebLog"></div>
+        </div>
       </div>
     </div>
   </div>
@@ -1456,46 +1537,38 @@ async function openAcaiModal() {
 }
 
 function syncAcaiModalState() {
-  if (acaiSession.hash) {
-    document.getElementById('acaiLoginSection').style.display = 'none';
-    document.getElementById('acaiDomainsSection').style.display = 'block';
+  const login = document.getElementById('acaiLoginSection');
+  const domains = document.getElementById('acaiDomainsSection');
+  const pull = document.getElementById('acaiPullSection');
+  const title = document.getElementById('acaiModalTitle');
+  login.style.display = 'none';
+  domains.style.display = 'none';
+  pull.style.display = 'none';
+
+  if (acaiSession.domain) {
+    pull.style.display = 'block';
+    title.textContent = 'Traer Web';
+  } else if (acaiSession.hash) {
+    domains.style.display = 'block';
     document.getElementById('acaiUserLabel').textContent = acaiSession.username;
     renderDomains();
+    title.textContent = 'Seleccionar Web';
   } else {
-    document.getElementById('acaiLoginSection').style.display = 'block';
-    document.getElementById('acaiDomainsSection').style.display = 'none';
+    login.style.display = 'block';
+    title.textContent = 'Conectar a Acai';
   }
 }
 
-function updateAcaiUI() {
-  const connNone = document.getElementById('acaiConnNone');
-  const connOk = document.getElementById('acaiConnOk');
-  const connBar = document.getElementById('acaiConnBar');
-  const pullCard = document.getElementById('pullCard');
-  const domainLabel = document.getElementById('acaiConnDomainName');
-
-  if (acaiSession.domain) {
-    connNone.style.display = 'none';
-    connOk.style.display = 'flex';
-    domainLabel.textContent = acaiSession.domain.domain;
-    connBar.classList.add('connected');
-    pullCard.style.display = '';
-    if (!document.getElementById('pullDestDir').value) {
-      document.getElementById('pullDestDir').value = '~/webs/' + acaiSession.domain.domain;
-    }
-    prefillMysqlPassword();
-  } else if (acaiSession.hash) {
-    connNone.style.display = 'none';
-    connOk.style.display = 'flex';
-    domainLabel.textContent = acaiSession.username;
-    connBar.classList.remove('connected');
-    pullCard.style.display = 'none';
-  } else {
-    connNone.style.display = 'flex';
-    connOk.style.display = 'none';
-    connBar.classList.remove('connected');
-    pullCard.style.display = 'none';
-  }
+function acaiBackToDomains() {
+  acaiSession.token = '';
+  acaiSession.tokenHash = '';
+  acaiSession.domain = null;
+  acaiSession.user = null;
+  document.getElementById('pullDestDir').value = '';
+  document.getElementById('pullWebOutput').classList.remove('visible');
+  document.getElementById('pullWebLog').textContent = '';
+  syncAcaiModalState();
+  updateAcaiSidebar();
 }
 
 // ---- API helpers ----
@@ -1959,11 +2032,7 @@ async function acaiLogin() {
     acaiSession.hash = data.hash;
     acaiSession.domains = data.domains || [];
 
-    document.getElementById('acaiLoginSection').style.display = 'none';
-    document.getElementById('acaiDomainsSection').style.display = 'block';
-    document.getElementById('acaiUserLabel').textContent = username;
-
-    renderDomains();
+    syncAcaiModalState();
     updateAcaiSidebar();
   } catch (e) {
     showAcaiStatus('acaiLoginStatus', 'error', 'Error de conexion: ' + e.message);
@@ -2020,15 +2089,14 @@ async function acaiSelectDomain(domainNum, domainName) {
     acaiSession.domain = data.domain;
     acaiSession.user = data.user;
 
-    renderDomains();
-    updateAcaiSidebar();
-
-    // Close modal and update main page
-    closeModal('acaiModal');
+    // Show pull section inside modal
     document.getElementById('pullDestDir').value = '~/webs/' + (data.domain.domain || domainName);
+    document.getElementById('acaiPullDomainName').textContent = data.domain.domain || domainName;
     document.getElementById('pullWebOutput').classList.remove('visible');
     document.getElementById('pullWebLog').textContent = '';
-    updateAcaiUI();
+    syncAcaiModalState();
+    updateAcaiSidebar();
+    prefillMysqlPassword();
   } catch (e) {
     showAcaiStatus('acaiDomainStatus', 'error', 'Error: ' + e.message);
   }
@@ -2037,24 +2105,24 @@ async function acaiSelectDomain(domainNum, domainName) {
 function acaiLogout() {
   acaiSession = { username: '', hash: '', domains: [], token: '', tokenHash: '', domain: null, user: null };
   // Reset modal state
-  document.getElementById('acaiLoginSection').style.display = 'block';
-  document.getElementById('acaiDomainsSection').style.display = 'none';
   document.getElementById('acaiPassword').value = '';
   document.getElementById('acaiLoginStatus').innerHTML = '';
   document.getElementById('acaiDomainStatus').innerHTML = '';
 
   // Reset pull state
+  document.getElementById('pullDestDir').value = '';
+  document.getElementById('pullDbPassword').value = '';
   document.getElementById('pullWebOutput').classList.remove('visible');
   document.getElementById('pullWebLog').textContent = '';
+  document.getElementById('toggleUploads').classList.remove('on');
 
   closeModal('acaiModal');
-  updateAcaiUI();
+  syncAcaiModalState();
   updateAcaiSidebar();
 }
 
 async function pullWeb() {
   if (!acaiSession.token || !acaiSession.domain) {
-    showAcaiStatus('acaiDomainStatus', 'error', 'Selecciona un dominio primero');
     return;
   }
 
@@ -2063,8 +2131,9 @@ async function pullWeb() {
   const dbPassword = document.getElementById('pullDbPassword').value;
 
   if (!dbPassword) {
-    alert('Introduce la clave MySQL');
     document.getElementById('pullDbPassword').focus();
+    document.getElementById('pullDbPassword').style.borderColor = 'var(--red)';
+    setTimeout(() => { document.getElementById('pullDbPassword').style.borderColor = ''; }, 2000);
     return;
   }
 
@@ -2109,8 +2178,13 @@ async function pullWeb() {
       if (data.uploads_count) output += 'Uploads: ' + data.uploads_count + '\n';
       logEl.textContent = output;
 
-      // Refresh list
+      // Refresh list then auto-disconnect after a brief delay
       refreshLocalWebs();
+      btn.innerHTML = 'Completado';
+      setTimeout(() => {
+        acaiLogout();
+      }, 2500);
+      return;
     } else {
       logEl.textContent = 'Error: ' + (data.error || JSON.stringify(data));
     }
@@ -2155,25 +2229,88 @@ async function refreshLocalWebs() {
 }
 
 function renderLocalWebCard(w) {
-  const runBadge = w.running ? ' <span class="badge badge-running">Running</span>' : '';
-  const acaiBadge = w.acai ? ' <span class="badge-acai">Acai</span>' : '';
+  const runBadge = w.running ? '<span class="badge badge-running">Running</span>' : '';
+  const acaiBadge = w.acai ? '<span class="badge-acai">Acai</span>' : '';
+
+  // Git badges
+  let gitStatusHtml = '';
+  if (w.has_git) {
+    let parts = [];
+    if (w.git_clean) {
+      parts.push(`<span class="badge-git badge-git-clean" style="cursor:pointer" onclick="showGitStatus('${escapeAttr(w.path)}')">&#10003; Limpio</span>`);
+    } else {
+      const n = w.git_changed || 0;
+      parts.push(`<span class="badge-git badge-git-dirty" style="cursor:pointer" onclick="showGitStatus('${escapeAttr(w.path)}')" title="Click para ver detalle">${n} cambio${n !== 1 ? 's' : ''}</span>`);
+    }
+    if (w.git_ahead > 0) parts.push(`<span class="badge-git" style="background:var(--accent-dim);color:var(--accent);">&uarr; ${w.git_ahead} por subir</span>`);
+    if (w.git_behind > 0) parts.push(`<span class="badge-git" style="background:rgba(168,85,247,0.15);color:#a855f7;">&darr; ${w.git_behind} por bajar</span>`);
+    gitStatusHtml = `<div class="local-web-git">${parts.join(' ')}</div>`;
+  }
+
   const date = new Date(w.modified * 1000);
   const dateStr = date.toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' });
+
+  // Stats
   const statParts = [];
-  if (w.modules !== undefined) statParts.push(`<div class="stat-box stat-modules"><span class="stat-icon">&#9638;</span><span class="stat-num">${w.modules}</span>módulos</div>`);
+  if (w.modules !== undefined) statParts.push(`<div class="stat-box stat-modules"><span class="stat-icon">&#9638;</span><span class="stat-num">${w.modules}</span>modulos</div>`);
   if (w.hooks !== undefined) statParts.push(`<div class="stat-box stat-hooks"><span class="stat-icon">&#9672;</span><span class="stat-num">${w.hooks}</span>hooks</div>`);
   if (w.assets !== undefined) statParts.push(`<div class="stat-box stat-assets"><span class="stat-icon">&#9830;</span><span class="stat-num">${w.assets}</span>assets</div>`);
   if (w.has_db) statParts.push(`<div class="stat-box stat-db"><span class="stat-icon">&#9707;</span>BD</div>`);
   const statsHtml = statParts.length ? `<div class="local-web-stats">${statParts.join('')}</div>` : '';
+
+  // Show middle row only if there are stats or git
+  const hasMiddle = statParts.length || w.has_git;
+  const middleHtml = hasMiddle ? `<div class="local-web-middle">${statsHtml}${gitStatusHtml}</div>` : '';
+
+  // Git connection status badge
+  const hasGiteaConfig = appSettings.gitea_url && appSettings.gitea_username;
+  const gitConnected = w.has_git && w.git_remote_exists;
+  let gitConnBadge = '';
+  if (hasGiteaConfig && w.acai) {
+    if (gitConnected) {
+      gitConnBadge = '<span class="badge-git badge-git-clean">Repo conectado</span>';
+    } else if (w.has_git && !w.git_remote_exists) {
+      gitConnBadge = '<span class="badge-git badge-git-dirty">Repo no existe</span>';
+    } else if (!w.has_git && w.git_remote_exists) {
+      gitConnBadge = '<span class="badge-git" style="background:var(--accent-dim);color:var(--accent);">Repo disponible</span>';
+    } else {
+      gitConnBadge = '<span class="badge-git" style="background:var(--red-dim);color:var(--red);">Sin repo</span>';
+    }
+  }
+
+  // Action buttons
+  let gitButtons = '';
+  if (w.has_git && w.git_remote_exists) {
+    gitButtons = `
+      <button class="btn btn-secondary btn-sm" onclick="gitPush('${escapeAttr(w.path)}', this)">&#8593; Push</button>
+      <button class="btn btn-secondary btn-sm" onclick="gitPull('${escapeAttr(w.path)}', this)">&#8595; Pull</button>`;
+  } else if (w.acai && hasGiteaConfig && !gitConnected) {
+    gitButtons = `<button class="btn btn-secondary btn-sm" onclick="gitInit('${escapeAttr(w.path)}', '${escapeAttr(w.name)}', this)">Iniciar Git</button>`;
+  }
+
+  // Can launch only if git is connected
+  const canLaunch = w.acai && gitConnected;
+  let launchDisabled = '';
+  if (w.running) launchDisabled = 'disabled title="Ya esta en ejecucion"';
+  else if (!gitConnected) launchDisabled = 'disabled title="Conecta Git primero"';
+
   return `
     <div class="local-web-card">
-      <div class="local-web-info">
-        <div class="local-web-name">${escapeHtml(w.name)}${runBadge}${acaiBadge}</div>
-        <div class="local-web-meta">${escapeHtml(w.path)} &middot; ${dateStr}</div>
-        ${statsHtml}
+      <div class="local-web-header">
+        <div class="local-web-name">
+          ${escapeHtml(w.name)}
+          ${runBadge}
+          ${acaiBadge}
+          ${gitConnBadge}
+        </div>
+        <span class="local-web-date">${dateStr}</span>
       </div>
+      <div class="local-web-path">${escapeHtml(w.path)}</div>
+      ${middleHtml}
       <div class="local-web-actions">
-        ${w.acai ? `<button class="btn btn-primary btn-sm" id="launch-${escapeAttr(w.name)}" onclick="launchAcaiWeb('${escapeAttr(w.path)}', ${!!w.has_db})" ${w.running ? 'disabled title="Ya está en ejecución"' : ''}>Levantar</button>` : ''}
+        ${w.acai ? `<button class="btn btn-primary btn-sm" id="launch-${escapeAttr(w.name)}" onclick="launchAcaiWeb('${escapeAttr(w.path)}', ${!!w.has_db})" ${launchDisabled}>Levantar</button>` : ''}
+        ${gitButtons}
+        <span class="local-web-actions-spacer"></span>
         ${w.running ? `<button class="btn btn-secondary btn-sm" onclick="openInVSCode('${escapeAttr(w.path)}')">VSCode</button>` : ''}
         <button class="btn btn-secondary btn-sm" onclick="openLocalWebFolder('${escapeAttr(w.path)}')">Abrir carpeta</button>
         <button class="btn btn-danger btn-sm" onclick="confirmDeleteLocalWeb('${escapeAttr(w.path)}', '${escapeAttr(w.name)}')" ${w.running ? 'disabled title="Para el proyecto primero"' : ''}>Eliminar</button>
@@ -2314,6 +2451,12 @@ async function loadSettings() {
     document.getElementById('settingsAcaiPassword').placeholder = data.has_acai_password ? 'Contraseña guardada (dejar vacío para mantener)' : 'Sin contraseña guardada';
     document.getElementById('settingsMysqlPassword').value = '';
     document.getElementById('settingsMysqlPassword').placeholder = data.has_mysql_password ? 'Contraseña guardada (dejar vacío para mantener)' : 'Sin contraseña guardada';
+    // Gitea fields
+    document.getElementById('settingsGiteaUrl').value = data.gitea_url || '';
+    document.getElementById('settingsGiteaOrg').value = data.gitea_org || 'acai';
+    document.getElementById('settingsGiteaUsername').value = data.gitea_username || '';
+    document.getElementById('settingsGiteaPassword').value = '';
+    document.getElementById('settingsGiteaPassword').placeholder = data.has_gitea_password ? 'Token guardado (dejar vacío para mantener)' : 'Sin token guardado';
   } catch (e) { /* ignore */ }
 }
 
@@ -2348,6 +2491,153 @@ async function saveSettingsAcai() {
     flashStatus('settingsAcaiStatus');
     loadSettings(); // refresh placeholders
   } catch (e) { /* ignore */ }
+}
+
+// ---- Git / Gitea Settings ----
+async function saveSettingsGitea() {
+  const body = {
+    gitea_url: document.getElementById('settingsGiteaUrl').value.trim(),
+    gitea_org: document.getElementById('settingsGiteaOrg').value.trim() || 'acai',
+    gitea_username: document.getElementById('settingsGiteaUsername').value.trim(),
+  };
+  const giteaPw = document.getElementById('settingsGiteaPassword').value;
+  if (giteaPw !== '') body.gitea_password = giteaPw;
+  try {
+    await api('/api/settings', { method: 'POST', body: JSON.stringify(body) });
+    flashStatus('settingsGiteaStatus');
+    loadSettings();
+  } catch (e) { /* ignore */ }
+}
+
+async function testGiteaConnection() {
+  const statusEl = document.getElementById('settingsGiteaTestStatus');
+  const url = document.getElementById('settingsGiteaUrl').value.trim();
+  const username = document.getElementById('settingsGiteaUsername').value.trim();
+  const password = document.getElementById('settingsGiteaPassword').value;
+  if (!url || !username || !password) {
+    statusEl.style.display = 'inline';
+    statusEl.style.color = 'var(--red)';
+    statusEl.textContent = 'Rellena URL, usuario y contraseña';
+    return;
+  }
+  statusEl.style.display = 'inline';
+  statusEl.style.color = 'var(--accent)';
+  statusEl.textContent = 'Probando...';
+  try {
+    const data = await api('/api/gitea/test', {
+      method: 'POST',
+      body: JSON.stringify({ gitea_url: url, gitea_username: username, gitea_password: password }),
+    });
+    if (data.success) {
+      statusEl.style.color = 'var(--green)';
+      statusEl.textContent = 'Conexion OK: ' + (data.user || '');
+    } else {
+      statusEl.style.color = 'var(--red)';
+      statusEl.textContent = 'Error: ' + (data.error || 'desconocido');
+    }
+  } catch (e) {
+    statusEl.style.color = 'var(--red)';
+    statusEl.textContent = 'Error: ' + e.message;
+  }
+  setTimeout(() => { statusEl.style.display = 'none'; }, 5000);
+}
+
+// ---- Git operations ----
+async function gitInit(path, domain, btn) {
+  if (btn) { btn.disabled = true; btn.textContent = 'Iniciando...'; }
+  try {
+    const data = await api('/api/git/init', {
+      method: 'POST',
+      body: JSON.stringify({ path, domain }),
+    });
+    if (data.success) {
+      document.getElementById('outputTitle').textContent = 'Git Init';
+      document.getElementById('outputContent').textContent = (data.steps || []).join('\n');
+      openModal('outputModal');
+      refreshLocalWebs();
+    } else {
+      document.getElementById('outputTitle').textContent = 'Error Git Init';
+      document.getElementById('outputContent').textContent = (data.error || '') + '\n' + (data.steps || []).join('\n');
+      openModal('outputModal');
+    }
+  } catch (e) {
+    alert('Error: ' + e.message);
+  }
+  if (btn) { btn.disabled = false; btn.textContent = 'Iniciar Git'; }
+}
+
+async function gitPush(path, btn) {
+  if (btn) { btn.disabled = true; btn.textContent = 'Pushing...'; }
+  try {
+    const data = await api('/api/git/push', {
+      method: 'POST',
+      body: JSON.stringify({ path }),
+    });
+    if (data.success) {
+      document.getElementById('outputTitle').textContent = 'Git Push';
+      document.getElementById('outputContent').textContent = (data.steps || []).join('\n');
+      openModal('outputModal');
+      refreshLocalWebs();
+    } else {
+      document.getElementById('outputTitle').textContent = 'Error Git Push';
+      document.getElementById('outputContent').textContent = (data.error || '') + '\n' + (data.steps || []).join('\n');
+      openModal('outputModal');
+    }
+  } catch (e) {
+    alert('Error: ' + e.message);
+  }
+  if (btn) { btn.disabled = false; btn.textContent = 'Push'; }
+}
+
+async function gitPull(path, btn) {
+  if (btn) { btn.disabled = true; btn.textContent = 'Pulling...'; }
+  try {
+    const data = await api('/api/git/pull', {
+      method: 'POST',
+      body: JSON.stringify({ path }),
+    });
+    if (data.success) {
+      document.getElementById('outputTitle').textContent = 'Git Pull';
+      document.getElementById('outputContent').textContent = data.output || 'OK';
+      openModal('outputModal');
+      refreshLocalWebs();
+    } else {
+      document.getElementById('outputTitle').textContent = 'Error Git Pull';
+      document.getElementById('outputContent').textContent = (data.error || '') + '\n' + (data.output || '');
+      openModal('outputModal');
+    }
+  } catch (e) {
+    alert('Error: ' + e.message);
+  }
+  if (btn) { btn.disabled = false; btn.textContent = 'Pull'; }
+}
+
+async function showGitStatus(path) {
+  document.getElementById('outputTitle').textContent = 'Git Status';
+  document.getElementById('outputContent').textContent = 'Cargando...';
+  openModal('outputModal');
+  try {
+    const data = await api('/api/git/status?path=' + encodeURIComponent(path));
+    if (!data.has_git) {
+      document.getElementById('outputContent').textContent = 'No es un repositorio git.';
+      return;
+    }
+    let text = 'Rama: ' + data.branch + '\n';
+    text += 'Estado: ' + (data.clean ? 'Limpio (sin cambios)' : data.changed_files.length + ' archivo(s) modificado(s)') + '\n';
+    if (data.ahead > 0) text += 'Commits por subir: ' + data.ahead + '\n';
+    if (data.behind > 0) text += 'Commits por bajar: ' + data.behind + '\n';
+    if (data.changed_files && data.changed_files.length > 0) {
+      text += '\n--- Archivos modificados ---\n';
+      data.changed_files.forEach(f => { text += f + '\n'; });
+    }
+    if (data.last_commits && data.last_commits.length > 0) {
+      text += '\n--- Ultimos commits ---\n';
+      data.last_commits.forEach(c => { text += c + '\n'; });
+    }
+    document.getElementById('outputContent').textContent = text;
+  } catch (e) {
+    document.getElementById('outputContent').textContent = 'Error: ' + e.message;
+  }
 }
 
 function applyTheme(theme) {
@@ -2428,10 +2718,7 @@ function startWatcherPolling() {
 // ---- Init ----
 async function initApp() {
   navigateFromHash();
-  refreshProjects();
-  refreshLocalWebs();
-  refreshWatcherLogs();
-  startWatcherPolling();
+  // Load settings FIRST so cards can check gitea config
   try {
     const settings = await api('/api/settings');
     appSettings = settings;
@@ -2443,6 +2730,10 @@ async function initApp() {
   } catch (e) {
     applyRefreshInterval(15);
   }
+  refreshProjects();
+  refreshLocalWebs();
+  refreshWatcherLogs();
+  startWatcherPolling();
 }
 initApp();
 </script>
