@@ -2229,8 +2229,49 @@ async function refreshLocalWebs() {
     el.innerHTML = '<div class="local-webs-grid">' +
       webs.map(w => renderLocalWebCard(w)).join('') +
       '</div>';
+    // Check server status for sync buttons (async, non-blocking)
+    checkServerSyncStatus();
   } catch (e) {
     el.innerHTML = '<div class="empty-state">Error al cargar</div>';
+  }
+}
+
+async function checkServerSyncStatus() {
+  const areas = document.querySelectorAll('.sync-area');
+  for (const area of areas) {
+    const domain = area.dataset.domain;
+    const path = area.dataset.path;
+    const hasLocalChanges = area.dataset.localChanges === 'true';
+    if (!domain) continue;
+    try {
+      const data = await api('/api/server-git/status', {
+        method: 'POST',
+        body: JSON.stringify({ domain }),
+      });
+      if (data && !data.error && data.has_remote) {
+        const serverHasChanges = !data.clean || data.ahead > 0;
+        const localBehind = parseInt(area.dataset.localBehind) || 0;
+        const serverBehind = data.behind || 0;
+        // "Traer" enabled if server has unpushed changes OR local is behind Gitea
+        const canPull = serverHasChanges || localBehind > 0;
+        // "Enviar" enabled if local has changes OR server is behind Gitea
+        const canPush = hasLocalChanges || serverBehind > 0;
+        let fromLabel = '&#8595; Traer de produccion';
+        if (serverHasChanges && localBehind > 0) fromLabel = '&#8595; Traer de produccion (' + (data.ahead + localBehind) + ')';
+        else if (serverHasChanges) fromLabel = data.ahead > 0 ? '&#8595; Traer de produccion (' + data.ahead + ')' : '&#8595; Traer de produccion (cambios)';
+        else if (localBehind > 0) fromLabel = '&#8595; Traer de produccion (' + localBehind + ')';
+        area.innerHTML =
+          `<button class="btn btn-sm" style="background:var(--accent);color:#fff;${canPull ? '' : 'opacity:0.5;'}" ${canPull ? '' : 'disabled'} onclick="syncFromProduction('${escapeAttr(domain)}', '${escapeAttr(path)}', this)">${fromLabel}</button>` +
+          `<button class="btn btn-sm" style="background:#e67e22;color:#fff;${canPush ? '' : 'opacity:0.5;'}" ${canPush ? '' : 'disabled'} onclick="syncToProduction('${escapeAttr(domain)}', '${escapeAttr(path)}', this)">&#8593; Enviar a produccion</button>`;
+      } else if (data && !data.error && !data.has_remote) {
+        area.innerHTML =
+          `<button class="btn btn-primary btn-sm" onclick="serverGitSetup('${escapeAttr(domain)}', this)">Conectar servidor a Gitea</button>`;
+      } else if (data && data.error) {
+        area.innerHTML = '<span style="color:var(--red);font-size:0.85rem;">Error: ' + escapeHtml(data.error.message || data.error) + '</span>';
+      }
+    } catch (e) {
+      area.innerHTML = '<span style="color:var(--muted);font-size:0.85rem;">No se pudo consultar servidor</span>';
+    }
   }
 }
 
@@ -2285,20 +2326,25 @@ function renderLocalWebCard(w) {
   }
 
   // Action buttons
+  // Git init button (only when not yet connected)
   let gitButtons = '';
-  if (w.has_git && w.git_remote_exists) {
-    gitButtons = `
-      <button class="btn btn-secondary btn-sm" onclick="gitPush('${escapeAttr(w.path)}', this)">&#8593; Push</button>
-      <button class="btn btn-secondary btn-sm" onclick="gitPull('${escapeAttr(w.path)}', this)">&#8595; Pull</button>`;
-  } else if (w.acai && hasGiteaConfig && !gitConnected) {
+  if (!(w.has_git && w.git_remote_exists) && w.acai && hasGiteaConfig && !gitConnected) {
     gitButtons = `<button class="btn btn-secondary btn-sm" onclick="gitInit('${escapeAttr(w.path)}', '${escapeAttr(w.name)}', this)">Iniciar Git</button>`;
   }
-
-  // Server git buttons
+  // Hidden: Push/Pull local and Servidor buttons (replaced by sync buttons above)
+  // if (w.has_git && w.git_remote_exists) {
+  //   gitButtons += `<button class="btn btn-secondary btn-sm" onclick="gitPush('${escapeAttr(w.path)}', this)">Push</button>
+  //     <button class="btn btn-secondary btn-sm" onclick="gitPull('${escapeAttr(w.path)}', this)">Pull</button>`;
+  // }
   let serverGitButtons = '';
-  if (w.acai && hasGiteaConfig) {
-    serverGitButtons = `
-      <button class="btn btn-secondary btn-sm" onclick="serverGitStatus('${escapeAttr(w.name)}', this)" title="Estado git del servidor">&#9881; Servidor</button>`;
+  // if (w.acai && hasGiteaConfig) {
+  //   serverGitButtons = `<button class="btn btn-secondary btn-sm" onclick="serverGitStatus('${escapeAttr(w.name)}', this)" title="Estado git del servidor">&#9881; Servidor</button>`;
+  // }
+
+  // Sync area (simplified flow: production <-> local)
+  let syncButtons = '';
+  if (w.has_git && w.git_remote_exists && w.acai && hasGiteaConfig) {
+    syncButtons = `<span class="sync-area" data-domain="${escapeAttr(w.name)}" data-path="${escapeAttr(w.path)}" data-local-changes="${!w.git_clean || w.git_ahead > 0}" data-local-behind="${w.git_behind || 0}" style="color:var(--muted);font-size:0.85rem;">Comprobando servidor...</span>`;
   }
 
   // Migration button
@@ -2326,6 +2372,7 @@ function renderLocalWebCard(w) {
       </div>
       <div class="local-web-path">${escapeHtml(w.path)}</div>
       ${middleHtml}
+      ${syncButtons ? `<div class="local-web-actions" style="border-bottom:1px solid var(--border);padding-bottom:8px;margin-bottom:4px;">${syncButtons}</div>` : ''}
       <div class="local-web-actions">
         ${w.acai ? `<button class="btn btn-primary btn-sm" id="launch-${escapeAttr(w.name)}" onclick="launchAcaiWeb('${escapeAttr(w.path)}', ${!!w.has_db})" ${launchDisabled}>Levantar</button>` : ''}
         ${gitButtons}
@@ -2757,6 +2804,81 @@ async function serverGitPull(domain, btn) {
     alert('Error: ' + e.message);
   }
   if (btn) { btn.disabled = false; btn.textContent = 'Pull Servidor'; }
+}
+
+// --- Sync buttons: simplified production <-> local flow ---
+
+async function syncFromProduction(domain, path, btn) {
+  if (btn) { btn.disabled = true; btn.textContent = 'Sincronizando...'; }
+  document.getElementById('outputTitle').textContent = 'Traer de produccion';
+  document.getElementById('outputContent').innerHTML = 'Paso 1/2: Subiendo cambios del servidor a Gitea...';
+  openModal('outputModal');
+  const el = document.getElementById('outputContent');
+  try {
+    // Step 1: Server push to Gitea
+    const pushData = await api('/api/server-git/push', {
+      method: 'POST',
+      body: JSON.stringify({ domain }),
+    });
+    if (pushData.error) {
+      el.innerHTML = '<pre style="margin:0;white-space:pre-wrap;">Error en push del servidor:\n' + escapeHtml(pushData.error.message || pushData.error) + '</pre>';
+      if (btn) { btn.disabled = false; btn.innerHTML = '&#8595; Traer de produccion'; }
+      return;
+    }
+    el.innerHTML = 'Paso 2/2: Bajando cambios de Gitea a local...';
+    // Step 2: Local pull from Gitea
+    const pullData = await api('/api/git/pull', {
+      method: 'POST',
+      body: JSON.stringify({ path }),
+    });
+    let result = 'Servidor → Gitea: OK\n';
+    if (pushData.commit) result += pushData.commit + '\n';
+    result += '\nGitea → Local: ' + (pullData.success ? 'OK' : 'Error') + '\n';
+    if (pullData.output) result += pullData.output + '\n';
+    if (pullData.steps) result += pullData.steps.join('\n') + '\n';
+    if (pullData.error) result += pullData.error + '\n';
+    el.innerHTML = '<pre style="margin:0;white-space:pre-wrap;">' + escapeHtml(result) + '</pre>';
+    refreshLocalWebs();
+  } catch (e) {
+    el.innerHTML = '<pre style="margin:0;white-space:pre-wrap;">Error: ' + escapeHtml(e.message) + '</pre>';
+  }
+  if (btn) { btn.disabled = false; btn.innerHTML = '&#8595; Traer de produccion'; }
+}
+
+async function syncToProduction(domain, path, btn) {
+  if (btn) { btn.disabled = true; btn.textContent = 'Sincronizando...'; }
+  document.getElementById('outputTitle').textContent = 'Enviar a produccion';
+  document.getElementById('outputContent').innerHTML = 'Paso 1/2: Subiendo cambios locales a Gitea...';
+  openModal('outputModal');
+  const el = document.getElementById('outputContent');
+  try {
+    // Step 1: Local push to Gitea
+    const pushData = await api('/api/git/push', {
+      method: 'POST',
+      body: JSON.stringify({ path }),
+    });
+    if (!pushData.success) {
+      el.innerHTML = '<pre style="margin:0;white-space:pre-wrap;">Error en push local:\n' + escapeHtml(pushData.error || JSON.stringify(pushData)) + '</pre>';
+      if (btn) { btn.disabled = false; btn.innerHTML = '&#8593; Enviar a produccion'; }
+      return;
+    }
+    el.innerHTML = 'Paso 2/2: Bajando cambios de Gitea al servidor...';
+    // Step 2: Server pull from Gitea
+    const pullData = await api('/api/server-git/pull', {
+      method: 'POST',
+      body: JSON.stringify({ domain }),
+    });
+    let result = 'Local → Gitea: OK\n';
+    if (pushData.output) result += pushData.output + '\n';
+    result += '\nGitea → Servidor: ' + (pullData.success ? 'OK' : 'Error') + '\n';
+    if (pullData.pull) result += pullData.pull + '\n';
+    if (pullData.error) result += (pullData.error.message || pullData.error) + '\n';
+    el.innerHTML = '<pre style="margin:0;white-space:pre-wrap;">' + escapeHtml(result) + '</pre>';
+    refreshLocalWebs();
+  } catch (e) {
+    el.innerHTML = '<pre style="margin:0;white-space:pre-wrap;">Error: ' + escapeHtml(e.message) + '</pre>';
+  }
+  if (btn) { btn.disabled = false; btn.innerHTML = '&#8593; Enviar a produccion'; }
 }
 
 async function migrateProject(path, name, btn) {

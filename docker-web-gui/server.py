@@ -1240,6 +1240,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     git_clean = (rc == 0 and out.strip() == "")
                     if not git_clean and rc == 0:
                         git_changed = len([l for l in out.strip().splitlines() if l.strip()])
+                    # fetch remote to get accurate ahead/behind
+                    run_cmd(["git", "-C", str(item), "fetch", "origin"], timeout=8)
                     # ahead/behind
                     rc_ab, ab_out, _ = run_cmd(["git", "-C", str(item), "rev-list", "--left-right", "--count", "HEAD...@{upstream}"], timeout=10)
                     if rc_ab == 0 and ab_out.strip():
