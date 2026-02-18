@@ -294,11 +294,12 @@ RUN apt-get update && apt-get install -y \\
     libjpeg62-turbo-dev \\
     libpng-dev \\
     libwebp-dev \\
+    libzip-dev \\
     && rm -rf /var/lib/apt/lists/*
 
 # Configurar y instalar extensiones PHP
 RUN docker-php-ext-configure gd --with-freetype --with-jpeg --with-webp \\
-    && docker-php-ext-install -j\$(nproc) gd mysqli pdo pdo_mysql
+    && docker-php-ext-install -j\$(nproc) gd mysqli pdo pdo_mysql zip
 ${REDIS_EXT}
 
 # short_open_tag
