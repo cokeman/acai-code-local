@@ -215,6 +215,18 @@ def acai_request(auth_header):
         return {"success": False, "error": str(e)}
 
 
+def _parse_php_json(raw):
+    """Parse JSON from PHP response, tolerating leading warnings/notices."""
+    try:
+        return json.loads(raw)
+    except json.JSONDecodeError:
+        # PHP may prepend warnings before JSON — find first { or [
+        for i, ch in enumerate(raw):
+            if ch in ('{', '['):
+                return json.loads(raw[i:])
+        raise
+
+
 def acai_web_request(domain, ssl_enabled, payload, timeout=30):
     """Makes a POST request to a remote Acai CMS viewer_functions.php endpoint."""
     scheme = "https" if ssl_enabled else "http"
@@ -232,12 +244,13 @@ def acai_web_request(domain, ssl_enabled, payload, timeout=30):
     ctx = _get_ssl_context()
     try:
         with urllib.request.urlopen(req, context=ctx, timeout=timeout) as resp:
-            return json.loads(resp.read().decode())
+            raw = resp.read().decode()
+            return _parse_php_json(raw)
     except urllib.error.HTTPError as e:
         body = e.read().decode()
         try:
-            return json.loads(body)
-        except json.JSONDecodeError:
+            return _parse_php_json(body)
+        except (json.JSONDecodeError, ValueError):
             return {"error": "HTTP {}: {}".format(e.code, body[:200])}
     except Exception as e:
         return {"error": str(e)}
@@ -494,7 +507,20 @@ def _gitea_api(method, path, token=None, data=None):
 
 
 ACAI_GITIGNORE = """\
-# Acai local
+/*
+!hooks/
+!template/
+template/*
+!template/estandar/
+template/estandar/*
+!template/estandar/modulos/
+!cms/
+cms/*
+!cms/lib/
+cms/lib/*
+!cms/lib/plugins/
+cms/uploads/
+**/minified/
 .docker/
 .acai
 database.sql
@@ -502,15 +528,13 @@ database.sql
 node_modules/
 .DS_Store
 Thumbs.db
-uploads/
 """
 
 
 def _write_gitignore(dest):
-    """Write standard Acai .gitignore if it doesn't exist."""
+    """Write standard Acai .gitignore (always overwrites to keep in sync)."""
     gi = Path(dest) / ".gitignore"
-    if not gi.exists():
-        gi.write_text(ACAI_GITIGNORE, encoding="utf-8")
+    gi.write_text(ACAI_GITIGNORE, encoding="utf-8")
     return str(gi)
 
 
@@ -909,6 +933,16 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self.handle_git_pull(body)
         elif path == "/api/gitea/test":
             self.handle_gitea_test(body)
+        elif path == "/api/server-git/setup":
+            self.handle_server_git_setup(body)
+        elif path == "/api/server-git/status":
+            self.handle_server_git_status(body)
+        elif path == "/api/server-git/push":
+            self.handle_server_git_push(body)
+        elif path == "/api/server-git/pull":
+            self.handle_server_git_pull(body)
+        elif path == "/api/local-webs/migrate":
+            self.handle_local_webs_migrate(body)
         elif path.startswith("/local/"):
             self.handle_local_proxy("POST")
         else:
@@ -1230,14 +1264,23 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     "git_behind": git_behind,
                     "git_remote_exists": "sync-{}".format(item.name) in gitea_repos,
                 }
-                # Count modules, hooks, assets
-                modulos_dir = item / "modulos"
+                # Count modules, hooks, assets (new structure with fallback)
+                modulos_dir = item / "template" / "estandar" / "modulos"
+                needs_migration = False
+                if not modulos_dir.is_dir():
+                    modulos_dir = item / "modulos"
+                    if modulos_dir.is_dir():
+                        needs_migration = True
                 if modulos_dir.is_dir():
                     entry["modules"] = sum(1 for x in modulos_dir.iterdir() if x.is_dir())
                 hooks_dir = item / "hooks"
                 if hooks_dir.is_dir():
                     entry["hooks"] = sum(1 for x in hooks_dir.iterdir() if x.suffix == ".php")
-                layout_file = item / "layout.json"
+                layout_file = item / "cms" / "lib" / "plugins" / "builder_saas" / "layout.json"
+                if not layout_file.is_file():
+                    layout_file = item / "layout.json"
+                    if layout_file.is_file():
+                        needs_migration = True
                 if layout_file.is_file():
                     try:
                         with open(layout_file) as f:
@@ -1245,6 +1288,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
                         entry["assets"] = len(layout.get("librariesJSONt") or []) + len(layout.get("librariesJSONb") or [])
                     except Exception:
                         pass
+                entry["needs_migration"] = needs_migration
                 webs.append(entry)
         except PermissionError:
             pass
@@ -1618,7 +1662,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
         hooks_count = 0
         uploads_count = 0
 
-        modulos_dir = dest / "modulos"
+        modulos_dir = dest / "template" / "estandar" / "modulos"
         if modulos_dir.is_dir():
             modules_count = sum(1 for x in modulos_dir.iterdir() if x.is_dir())
         steps.append("{} modulos".format(modules_count))
@@ -1628,7 +1672,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
             hooks_count = sum(1 for x in hooks_dir.iterdir() if x.is_file())
         steps.append("{} hooks".format(hooks_count))
 
-        uploads_dir = dest / "uploads"
+        uploads_dir = dest / "cms" / "uploads"
         if uploads_dir.is_dir():
             uploads_count = sum(1 for x in uploads_dir.rglob("*") if x.is_file())
             steps.append("{} uploads".format(uploads_count))
@@ -1854,9 +1898,18 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return
         self._ensure_git_remote(safe)
         branch = self._git_branch(safe)
+        steps = []
+        # Auto-commit local changes so rebase can proceed cleanly
+        rc_st, st_out, _ = run_cmd(["git", "-C", safe, "status", "--porcelain"], timeout=10)
+        if rc_st == 0 and st_out.strip():
+            run_cmd(["git", "-C", safe, "add", "."], timeout=30)
+            rc_c, _, _ = run_cmd(["git", "-C", safe, "commit", "-m", "Sync from local (auto-commit before pull)"], timeout=30)
+            if rc_c == 0:
+                steps.append("Auto-commit de cambios locales")
         rc, out, err = run_cmd(["git", "-C", safe, "pull", "origin", branch, "--rebase"], timeout=60)
         if rc == 0:
-            self.send_json({"success": True, "output": out or "Already up to date."})
+            msg = "\n".join(steps + [out or "Already up to date."])
+            self.send_json({"success": True, "output": msg})
         else:
             self.send_json({"success": False, "error": err[:300], "output": out})
 
@@ -1892,6 +1945,160 @@ class Handler(http.server.BaseHTTPRequestHandler):
         except Exception as e:
             self.send_json({"success": False, "error": str(e)})
 
+    # ---- Server Git proxy endpoints ----
+
+    def _server_git_proxy(self, body, action_ws):
+        """Proxy a git action to the remote server's ws_respond.php."""
+        domain = body.get("domain", "")
+        if not domain:
+            self.send_error_json("domain is required")
+            return None
+        # Read token from .acai file
+        webs_dir = get_webs_dir()
+        acai_file = webs_dir / domain / ".acai"
+        if not acai_file.is_file():
+            self.send_error_json("No .acai file found for {}".format(domain))
+            return None
+        try:
+            acai_data = json.loads(acai_file.read_text(encoding="utf-8"))
+        except Exception:
+            self.send_error_json("Invalid .acai file")
+            return None
+
+        payload = {
+            "action_ws": action_ws,
+            "token": acai_data.get("token", ""),
+            "tokenHash": acai_data.get("tokenHash", ""),
+        }
+        payload.update({k: v for k, v in body.items() if k not in ("domain",)})
+        ssl_enabled = acai_data.get("ssl", True)
+        return acai_web_request(domain, ssl_enabled, payload, timeout=60)
+
+    def handle_server_git_setup(self, body):
+        """POST /api/server-git/setup — create Gitea repo + setup git on server."""
+        domain = body.get("domain", "")
+        if not domain:
+            self.send_error_json("domain is required")
+            return
+
+        config = load_config()
+        gitea_password = keychain_get("gitea")
+        if not config.get("gitea_url") or not config.get("gitea_username") or not gitea_password:
+            self.send_error_json("Gitea no configurado. Ve a Ajustes > Git Sync.")
+            return
+
+        # 1. Create repo in Gitea if it doesn't exist
+        org = config.get("gitea_org", "acai")
+        repo_name = "sync-{}".format(domain)
+        check = _gitea_api("GET", "/repos/{}/{}".format(org, repo_name))
+        steps = []
+        if not check.get("id"):
+            repo_result = _gitea_api("POST", "/orgs/{}/repos".format(org), data={
+                "name": repo_name,
+                "private": True,
+                "auto_init": False,
+            })
+            if repo_result.get("id"):
+                steps.append("Repo creado: {}/{}".format(org, repo_name))
+            else:
+                err_msg = repo_result.get("error") or repo_result.get("message", "unknown")
+                self.send_json({"success": False, "error": "Error creando repo: {}".format(err_msg)})
+                return
+        else:
+            steps.append("Repo existente: {}/{}".format(org, repo_name))
+
+        # 2. Inject Gitea creds and call server
+        body["gitea_url"] = config.get("gitea_url", "")
+        body["gitea_username"] = config.get("gitea_username", "")
+        body["gitea_password"] = gitea_password
+        body["gitea_org"] = org
+
+        result = self._server_git_proxy(body, "giteaSetup")
+        if result is None:
+            return
+        if result.get("error"):
+            self.send_json({"success": False, "error": result["error"], "steps": steps})
+        else:
+            server_steps = result.get("steps", [])
+            self.send_json({"success": True, "steps": steps + server_steps})
+
+    def handle_server_git_status(self, body):
+        """POST /api/server-git/status — get git status from server."""
+        result = self._server_git_proxy(body, "gitSyncStatus")
+        if result is not None:
+            self.send_json(result)
+
+    def handle_server_git_push(self, body):
+        """POST /api/server-git/push — commit + push on server."""
+        result = self._server_git_proxy(body, "gitSyncPush")
+        if result is not None:
+            self.send_json(result)
+
+    def handle_server_git_pull(self, body):
+        """POST /api/server-git/pull — pull on server."""
+        result = self._server_git_proxy(body, "gitSyncPull")
+        if result is not None:
+            self.send_json(result)
+
+    # ---- Migration ----
+
+    def handle_local_webs_migrate(self, body):
+        """POST /api/local-webs/migrate — migrate from flat to server structure."""
+        folder = body.get("path", "")
+        if not folder:
+            self.send_error_json("path is required")
+            return
+        p = Path(folder).resolve()
+        webs_dir = get_webs_dir()
+        if not str(p).startswith(str(webs_dir.resolve())):
+            self.send_error_json("Path must be inside {}".format(webs_dir))
+            return
+        if not p.is_dir():
+            self.send_error_json("Directory not found")
+            return
+
+        steps = []
+        try:
+            # modulos/ → template/estandar/modulos/
+            old_modulos = p / "modulos"
+            new_modulos = p / "template" / "estandar" / "modulos"
+            if old_modulos.is_dir() and not new_modulos.is_dir():
+                new_modulos.parent.mkdir(parents=True, exist_ok=True)
+                old_modulos.rename(new_modulos)
+                steps.append("modulos/ -> template/estandar/modulos/")
+
+            # plugins/ → cms/lib/plugins/
+            old_plugins = p / "plugins"
+            new_plugins = p / "cms" / "lib" / "plugins"
+            if old_plugins.is_dir() and not new_plugins.is_dir():
+                new_plugins.parent.mkdir(parents=True, exist_ok=True)
+                old_plugins.rename(new_plugins)
+                steps.append("plugins/ -> cms/lib/plugins/")
+
+            # layout.json → cms/lib/plugins/builder_saas/layout.json
+            old_layout = p / "layout.json"
+            new_layout = p / "cms" / "lib" / "plugins" / "builder_saas" / "layout.json"
+            if old_layout.is_file() and not new_layout.is_file():
+                new_layout.parent.mkdir(parents=True, exist_ok=True)
+                old_layout.rename(new_layout)
+                steps.append("layout.json -> cms/lib/plugins/builder_saas/layout.json")
+
+            # uploads/ → cms/uploads/
+            old_uploads = p / "uploads"
+            new_uploads = p / "cms" / "uploads"
+            if old_uploads.is_dir() and not new_uploads.is_dir():
+                new_uploads.parent.mkdir(parents=True, exist_ok=True)
+                old_uploads.rename(new_uploads)
+                steps.append("uploads/ -> cms/uploads/")
+
+            # Rewrite .gitignore
+            _write_gitignore(str(p))
+            steps.append(".gitignore actualizado")
+
+            self.send_json({"success": True, "steps": steps})
+        except Exception as e:
+            self.send_json({"success": False, "error": str(e), "steps": steps})
+
 
 # ---- Module watcher ----
 
@@ -1921,7 +2128,9 @@ def _scan_modules_mtimes(projects):
         proj_dir = proj.get("project_dir", "")
         if not proj_dir:
             continue
-        modulos_dir = Path(proj_dir) / "modulos"
+        modulos_dir = Path(proj_dir) / "template" / "estandar" / "modulos"
+        if not modulos_dir.is_dir():
+            modulos_dir = Path(proj_dir) / "modulos"
         if not modulos_dir.is_dir():
             continue
         for f in modulos_dir.rglob("*"):

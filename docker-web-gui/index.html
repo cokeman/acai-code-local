@@ -1548,6 +1548,9 @@ function syncAcaiModalState() {
   if (acaiSession.domain) {
     pull.style.display = 'block';
     title.textContent = 'Traer Web';
+    const pullBtn = document.getElementById('pullWebBtn');
+    pullBtn.disabled = false;
+    pullBtn.innerHTML = 'Traer Web';
   } else if (acaiSession.hash) {
     domains.style.display = 'block';
     document.getElementById('acaiUserLabel').textContent = acaiSession.username;
@@ -2115,6 +2118,9 @@ function acaiLogout() {
   document.getElementById('pullWebOutput').classList.remove('visible');
   document.getElementById('pullWebLog').textContent = '';
   document.getElementById('toggleUploads').classList.remove('on');
+  const pullBtn = document.getElementById('pullWebBtn');
+  pullBtn.disabled = false;
+  pullBtn.innerHTML = 'Traer Web';
 
   closeModal('acaiModal');
   syncAcaiModalState();
@@ -2288,6 +2294,19 @@ function renderLocalWebCard(w) {
     gitButtons = `<button class="btn btn-secondary btn-sm" onclick="gitInit('${escapeAttr(w.path)}', '${escapeAttr(w.name)}', this)">Iniciar Git</button>`;
   }
 
+  // Server git buttons
+  let serverGitButtons = '';
+  if (w.acai && hasGiteaConfig) {
+    serverGitButtons = `
+      <button class="btn btn-secondary btn-sm" onclick="serverGitStatus('${escapeAttr(w.name)}', this)" title="Estado git del servidor">&#9881; Servidor</button>`;
+  }
+
+  // Migration button
+  let migrateButton = '';
+  if (w.needs_migration) {
+    migrateButton = `<button class="btn btn-secondary btn-sm" style="border-color:var(--yellow);color:var(--yellow);" onclick="migrateProject('${escapeAttr(w.path)}', '${escapeAttr(w.name)}', this)">&#8634; Migrar</button>`;
+  }
+
   // Can launch only if git is connected
   const canLaunch = w.acai && gitConnected;
   let launchDisabled = '';
@@ -2310,6 +2329,8 @@ function renderLocalWebCard(w) {
       <div class="local-web-actions">
         ${w.acai ? `<button class="btn btn-primary btn-sm" id="launch-${escapeAttr(w.name)}" onclick="launchAcaiWeb('${escapeAttr(w.path)}', ${!!w.has_db})" ${launchDisabled}>Levantar</button>` : ''}
         ${gitButtons}
+        ${serverGitButtons}
+        ${migrateButton}
         <span class="local-web-actions-spacer"></span>
         ${w.running ? `<button class="btn btn-secondary btn-sm" onclick="openInVSCode('${escapeAttr(w.path)}')">VSCode</button>` : ''}
         <button class="btn btn-secondary btn-sm" onclick="openLocalWebFolder('${escapeAttr(w.path)}')">Abrir carpeta</button>
@@ -2638,6 +2659,124 @@ async function showGitStatus(path) {
   } catch (e) {
     document.getElementById('outputContent').textContent = 'Error: ' + e.message;
   }
+}
+
+async function serverGitStatus(domain, btn) {
+  if (btn) { btn.disabled = true; btn.textContent = 'Consultando...'; }
+  document.getElementById('outputTitle').textContent = 'Git Servidor: ' + domain;
+  document.getElementById('outputContent').innerHTML = 'Cargando...';
+  openModal('outputModal');
+  try {
+    const data = await api('/api/server-git/status', {
+      method: 'POST',
+      body: JSON.stringify({ domain }),
+    });
+    const el = document.getElementById('outputContent');
+    if (data.error) {
+      el.textContent = 'Error: ' + (data.error.message || data.error);
+    } else if (!data.has_git) {
+      el.innerHTML = '<p>El servidor no tiene git configurado.</p>' +
+        '<br><button class="btn btn-primary btn-sm" onclick="serverGitSetup(\'' + escapeAttr(domain) + '\', this)">Conectar servidor a Gitea</button>';
+    } else {
+      let text = 'Rama: ' + data.branch + '\n';
+      text += 'Estado: ' + (data.clean ? 'Limpio' : data.changed + ' cambio(s)') + '\n';
+      if (data.ahead > 0) text += 'Commits por subir: ' + data.ahead + '\n';
+      if (data.behind > 0) text += 'Commits por bajar: ' + data.behind + '\n';
+      if (data.last_commits && data.last_commits.length > 0) {
+        text += '\n--- Ultimos commits ---\n';
+        data.last_commits.forEach(c => { text += c.date + ' ' + c.message + '\n'; });
+      }
+      const hasRemote = !!data.has_remote;
+      let buttons = '<div style="display:flex;gap:8px;margin-top:12px;">';
+      if (!hasRemote) {
+        buttons += '<button class="btn btn-primary btn-sm" onclick="serverGitSetup(\'' + escapeAttr(domain) + '\', this)">Conectar servidor a Gitea</button>';
+      } else {
+        buttons += '<button class="btn btn-secondary btn-sm" onclick="serverGitPush(\'' + escapeAttr(domain) + '\', this)">&#8593; Push Servidor</button>';
+        buttons += '<button class="btn btn-secondary btn-sm" onclick="serverGitPull(\'' + escapeAttr(domain) + '\', this)">&#8595; Pull Servidor</button>';
+        buttons += '<button class="btn btn-sm" style="background:#dc3545;color:#fff;margin-left:auto;" onclick="serverGitSetup(\'' + escapeAttr(domain) + '\', this)">Reiniciar Gitea</button>';
+      }
+      buttons += '</div>';
+      el.innerHTML = '<pre style="margin:0;white-space:pre-wrap;">' + escapeHtml(text) + '</pre>' + buttons;
+    }
+  } catch (e) {
+    document.getElementById('outputContent').textContent = 'Error: ' + e.message;
+  }
+  if (btn) { btn.disabled = false; btn.innerHTML = '&#9881; Servidor'; }
+}
+
+async function serverGitSetup(domain, btn) {
+  if (btn) { btn.disabled = true; btn.textContent = 'Configurando...'; }
+  try {
+    const data = await api('/api/server-git/setup', {
+      method: 'POST',
+      body: JSON.stringify({ domain }),
+    });
+    document.getElementById('outputTitle').textContent = 'Setup Git Servidor';
+    document.getElementById('outputContent').innerHTML = data.success
+      ? '<pre style="margin:0;white-space:pre-wrap;">OK\n\n' + escapeHtml((data.steps || []).join('\n')) + '</pre>'
+      : '<pre style="margin:0;white-space:pre-wrap;">Error: ' + escapeHtml(data.error || 'unknown') + '\n' + escapeHtml((data.steps || []).join('\n')) + '</pre>';
+    openModal('outputModal');
+    refreshLocalWebs();
+  } catch (e) {
+    alert('Error: ' + e.message);
+  }
+  if (btn) { btn.disabled = false; btn.textContent = 'Conectar servidor a Gitea'; }
+}
+
+async function serverGitPush(domain, btn) {
+  if (btn) { btn.disabled = true; btn.textContent = 'Pushing...'; }
+  try {
+    const data = await api('/api/server-git/push', {
+      method: 'POST',
+      body: JSON.stringify({ domain }),
+    });
+    document.getElementById('outputTitle').textContent = 'Push Servidor';
+    document.getElementById('outputContent').textContent = data.success
+      ? 'OK\n' + (data.commit || '') + '\n' + (data.push || '')
+      : 'Error: ' + (data.error || JSON.stringify(data));
+    openModal('outputModal');
+  } catch (e) {
+    alert('Error: ' + e.message);
+  }
+  if (btn) { btn.disabled = false; btn.textContent = 'Push Servidor'; }
+}
+
+async function serverGitPull(domain, btn) {
+  if (btn) { btn.disabled = true; btn.textContent = 'Pulling...'; }
+  try {
+    const data = await api('/api/server-git/pull', {
+      method: 'POST',
+      body: JSON.stringify({ domain }),
+    });
+    document.getElementById('outputTitle').textContent = 'Pull Servidor';
+    document.getElementById('outputContent').textContent = data.success
+      ? 'OK\n' + (data.pull || '')
+      : 'Error: ' + (data.error || JSON.stringify(data));
+    openModal('outputModal');
+  } catch (e) {
+    alert('Error: ' + e.message);
+  }
+  if (btn) { btn.disabled = false; btn.textContent = 'Pull Servidor'; }
+}
+
+async function migrateProject(path, name, btn) {
+  if (!confirm('Migrar "' + name + '" a la nueva estructura de carpetas?\n\nmodulos/ → template/estandar/modulos/\nplugins/ → cms/lib/plugins/\nlayout.json → cms/lib/plugins/builder_saas/layout.json\nuploads/ → cms/uploads/')) return;
+  if (btn) { btn.disabled = true; btn.textContent = 'Migrando...'; }
+  try {
+    const data = await api('/api/local-webs/migrate', {
+      method: 'POST',
+      body: JSON.stringify({ path }),
+    });
+    document.getElementById('outputTitle').textContent = 'Migracion';
+    document.getElementById('outputContent').textContent = data.success
+      ? 'Migracion completada:\n\n' + (data.steps || []).join('\n')
+      : 'Error: ' + (data.error || 'unknown') + '\n' + (data.steps || []).join('\n');
+    openModal('outputModal');
+    refreshLocalWebs();
+  } catch (e) {
+    alert('Error: ' + e.message);
+  }
+  if (btn) { btn.disabled = false; btn.innerHTML = '&#8634; Migrar'; }
 }
 
 function applyTheme(theme) {
