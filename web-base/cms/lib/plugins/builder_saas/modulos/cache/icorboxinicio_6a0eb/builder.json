@@ -1,1 +1,0 @@
-{"label":"Icorbox: Inicio","description":"M\u00f3dulo con toda la p\u00e1gina de inicio","notParseComponents":false,"wrapper":"index.tpl","thumbnail":"thumbnail.jpg","tables":["builder_custom"],"vars":{"nombreModulo":{"type":"textfield","label":"Nombre del m\u00f3dulo","relations":{"builder_custom":"title1"}}},"editable":true}
