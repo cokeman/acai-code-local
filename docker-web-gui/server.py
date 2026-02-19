@@ -10,11 +10,8 @@ import json
 import os
 import re
 import shutil
-import socket
-import ssl
 import subprocess
 import sys
-import tempfile
 import threading
 import time
 import urllib.parse
@@ -22,643 +19,31 @@ import urllib.request
 import zipfile
 from pathlib import Path
 
-def _get_script_dir():
-    """Return the directory containing resources. Handles py2app bundles."""
-    # py2app sets this env var to Contents/Resources inside the .app bundle
-    if hasattr(sys, '_MEIPASS'):
-        return Path(sys._MEIPASS)
-    frozen = getattr(sys, 'frozen', None)
-    if frozen:
-        # py2app: sys.executable is Contents/MacOS/Docker Web GUI
-        return Path(sys.executable).resolve().parent.parent / "Resources"
-    return Path(__file__).resolve().parent
-
-SCRIPT_DIR = _get_script_dir()
-DEFAULT_WEBS_DIR = Path.home() / "webs"
-DEFAULT_PORT = 9090
-ACAI_AUTH_URL = "https://ws.cocosolution.com/api/auth/"
-
-CONFIG_DIR = Path.home() / ".docker-web-gui"
-CONFIG_FILE = CONFIG_DIR / "config.json"
-KEYCHAIN_SERVICE = "docker-web-gui"
-
-DEFAULT_CONFIG = {
-    "webs_dir": "~/webs",
-    "refresh_interval": 15,
-    "acai_username": "",
-    "theme": "dark",
-    "web_base_dir": "",
-    "docker_web_sh": "",
-    "gitea_url": "",
-    "gitea_org": "acai",
-    "gitea_username": "",
-}
-
-
-def load_config():
-    """Load config from ~/.docker-web-gui/config.json, returning defaults if missing."""
-    try:
-        if CONFIG_FILE.exists():
-            with open(str(CONFIG_FILE), "r", encoding="utf-8") as f:
-                saved = json.load(f)
-            config = dict(DEFAULT_CONFIG)
-            config.update(saved)
-            return config
-    except Exception:
-        pass
-    return dict(DEFAULT_CONFIG)
-
-
-def save_config(config):
-    """Save config to ~/.docker-web-gui/config.json with restricted permissions."""
-    try:
-        os.makedirs(str(CONFIG_DIR), mode=0o700, exist_ok=True)
-        tmp = str(CONFIG_FILE) + ".tmp"
-        with open(tmp, "w", encoding="utf-8") as f:
-            json.dump(config, f, ensure_ascii=False, indent=2)
-        os.chmod(tmp, 0o600)
-        os.replace(tmp, str(CONFIG_FILE))
-    except Exception as e:
-        raise RuntimeError("Error saving config: {}".format(e))
-
-
-def get_webs_dir():
-    """Return the configured webs directory as a Path."""
-    config = load_config()
-    return Path(os.path.expanduser(config.get("webs_dir", "~/webs")))
-
-
-def get_web_base_dir():
-    """Return the configured web-base directory, or auto-detect next to docker-web.sh."""
-    config = load_config()
-    val = config.get("web_base_dir", "")
-    if val:
-        p = Path(os.path.expanduser(val)).resolve()
-        if p.is_dir():
-            return p
-    # web-base always lives next to docker-web.sh on the filesystem
-    # Search the real filesystem locations (not inside .app bundle)
-    for candidate in [
-        SCRIPT_DIR.parent / "web-base",
-        Path.home() / "scripts" / "web-base",
-    ]:
-        if candidate.is_dir():
-            return candidate
-    return None
-
-
-def get_docker_web_sh():
-    """Return the configured docker-web.sh path, or the default relative to SCRIPT_DIR."""
-    config = load_config()
-    val = config.get("docker_web_sh", "")
-    if val:
-        return Path(os.path.expanduser(val)).resolve()
-    # Check bundled copy (inside .app Resources)
-    bundled = SCRIPT_DIR / "docker-web.sh"
-    if bundled.is_file():
-        return bundled
-    # Check relative to source (dev mode)
-    default = SCRIPT_DIR.parent / "docker-web.sh"
-    if default.is_file():
-        return default
-    return None
-
-
-def keychain_get(account):
-    """Read a password from macOS Keychain. Returns None if not found."""
-    try:
-        proc = subprocess.run(
-            ["security", "find-generic-password", "-s", KEYCHAIN_SERVICE, "-a", account, "-w"],
-            capture_output=True, text=True, timeout=10,
-        )
-        if proc.returncode == 0:
-            return proc.stdout.strip()
-    except Exception:
-        pass
-    return None
-
-
-def keychain_set(account, password):
-    """Store a password in macOS Keychain (-U updates if exists)."""
-    subprocess.run(
-        ["security", "add-generic-password", "-U", "-s", KEYCHAIN_SERVICE, "-a", account, "-w", password],
-        capture_output=True, text=True, timeout=10,
-    )
-
-
-def keychain_delete(account):
-    """Delete a password from macOS Keychain. Ignores errors if not found."""
-    subprocess.run(
-        ["security", "delete-generic-password", "-s", KEYCHAIN_SERVICE, "-a", account],
-        capture_output=True, text=True, timeout=10,
-    )
-
-
-_ssl_ctx_cache = None
-
-
-def _get_ssl_context():
-    """Devuelve un contexto SSL cacheado. En macOS sin certs configurados usa certifi o unverified."""
-    global _ssl_ctx_cache
-    if _ssl_ctx_cache is not None:
-        return _ssl_ctx_cache
-    # Intentar con certifi (si esta instalado via pip)
-    try:
-        import certifi
-        _ssl_ctx_cache = ssl.create_default_context(cafile=certifi.where())
-        return _ssl_ctx_cache
-    except ImportError:
-        pass
-    # Intentar contexto por defecto del sistema
-    ctx = ssl.create_default_context()
-    # Test real contra el servidor para ver si funciona
-    try:
-        test_req = urllib.request.Request(ACAI_AUTH_URL, method="HEAD")
-        urllib.request.urlopen(test_req, context=ctx, timeout=5)
-        _ssl_ctx_cache = ctx
-        return _ssl_ctx_cache
-    except urllib.error.URLError:
-        # Certs del sistema no funcionan, usar unverified (herramienta local)
-        ctx = ssl.create_default_context()
-        ctx.check_hostname = False
-        ctx.verify_mode = ssl.CERT_NONE
-        _ssl_ctx_cache = ctx
-        return _ssl_ctx_cache
-    except Exception:
-        _ssl_ctx_cache = ctx
-        return _ssl_ctx_cache
-
-
-def acai_request(auth_header):
-    """Hace POST a la API de auth de Acai Code y devuelve el JSON de respuesta."""
-    req = urllib.request.Request(
-        ACAI_AUTH_URL,
-        data=b"",
-        headers={
-            "Authorization": auth_header,
-            "Content-Type": "application/json",
-            "Content-Length": "0",
-        },
-        method="POST",
-    )
-    ctx = _get_ssl_context()
-    try:
-        with urllib.request.urlopen(req, context=ctx, timeout=15) as resp:
-            return json.loads(resp.read().decode())
-    except urllib.error.HTTPError as e:
-        body = e.read().decode()
-        try:
-            return json.loads(body)
-        except json.JSONDecodeError:
-            return {"success": False, "error": "HTTP {}: {}".format(e.code, body[:200])}
-    except Exception as e:
-        return {"success": False, "error": str(e)}
-
-
-def _parse_php_json(raw):
-    """Parse JSON from PHP response, tolerating leading warnings/notices."""
-    try:
-        return json.loads(raw)
-    except json.JSONDecodeError:
-        # PHP may prepend warnings before JSON — find first { or [
-        for i, ch in enumerate(raw):
-            if ch in ('{', '['):
-                return json.loads(raw[i:])
-        raise
-
-
-def acai_web_request(domain, ssl_enabled, payload, timeout=30):
-    """Makes a POST request to a remote Acai CMS viewer_functions.php endpoint."""
-    scheme = "https" if ssl_enabled else "http"
-    url = "{}://{}/cms/lib/viewer_functions.php".format(scheme, domain)
-    data = json.dumps(payload).encode()
-    req = urllib.request.Request(
-        url,
-        data=data,
-        headers={
-            "Content-Type": "application/json",
-            "Content-Length": str(len(data)),
-        },
-        method="POST",
-    )
-    ctx = _get_ssl_context()
-    try:
-        with urllib.request.urlopen(req, context=ctx, timeout=timeout) as resp:
-            raw = resp.read().decode()
-            return _parse_php_json(raw)
-    except urllib.error.HTTPError as e:
-        body = e.read().decode()
-        try:
-            return _parse_php_json(body)
-        except (json.JSONDecodeError, ValueError):
-            return {"error": "HTTP {}: {}".format(e.code, body[:200])}
-    except Exception as e:
-        return {"error": str(e)}
-
-
-def acai_web_request_zip(domain, ssl_enabled, payload, timeout=120):
-    """Download ZIP from Acai endpoint, return temp file path."""
-    scheme = "https" if ssl_enabled else "http"
-    url = "{}://{}/cms/lib/viewer_functions.php".format(scheme, domain)
-    data = json.dumps(payload).encode()
-    req = urllib.request.Request(
-        url,
-        data=data,
-        headers={
-            "Content-Type": "application/json",
-            "Content-Length": str(len(data)),
-        },
-        method="POST",
-    )
-    ctx = _get_ssl_context()
-    try:
-        with urllib.request.urlopen(req, context=ctx, timeout=timeout) as resp:
-            content_type = resp.getheader("Content-Type", "")
-            body = resp.read()
-            # If server returned JSON instead of ZIP, it's an error
-            if "application/json" in content_type:
-                try:
-                    err = json.loads(body.decode())
-                    return {"error": err.get("error", err.get("message", "Unknown error"))}
-                except json.JSONDecodeError:
-                    return {"error": "Unexpected JSON response"}
-            # Save binary to temp file
-            fd, tmp_path = tempfile.mkstemp(suffix=".zip", prefix="acai_pack_")
-            try:
-                os.write(fd, body)
-            finally:
-                os.close(fd)
-            return {"path": tmp_path}
-    except urllib.error.HTTPError as e:
-        body = e.read().decode()
-        try:
-            err = json.loads(body)
-            return {"error": err.get("error", "HTTP {}".format(e.code))}
-        except json.JSONDecodeError:
-            return {"error": "HTTP {}: {}".format(e.code, body[:200])}
-    except Exception as e:
-        return {"error": str(e)}
-
-
-def _php_block_to_twig(php_code):
-    """Convert a decoded PHP block to its Twig equivalent."""
-    php = php_code.strip()
-    # t_var(t($var,'field')) → {{ var.field | translate }}
-    m = re.match(r'<\?(?:php)?\s+echo\s+t_var\(t\(\$(\w+),\s*[\'"]([^\'"]+)[\'"]\)\);\s*\?>', php)
-    if m:
-        return "{{ " + m.group(1) + "." + m.group(2) + " | translate }}"
-    # func(t($var,'field')) → {{ var.field | func }}
-    m = re.match(r'<\?(?:php)?\s+echo\s+(\w+)\(t\(\$(\w+),\s*[\'"]([^\'"]+)[\'"]\)\);\s*\?>', php)
-    if m:
-        return "{{ " + m.group(2) + "." + m.group(3) + " | " + m.group(1) + " }}"
-    # t($var,'field') → {{ var.field }}
-    m = re.match(r'<\?(?:php)?\s+echo\s+t\(\$(\w+),\s*[\'"]([^\'"]+)[\'"]\);\s*\?>', php)
-    if m:
-        return "{{ " + m.group(1) + "." + m.group(2) + " }}"
-    # t_var('text') → {{ 'text' | translate }}
-    m = re.match(r'<\?(?:php)?\s+echo\s+t_var\([\'"](.+?)[\'"]\);\s*\?>', php)
-    if m:
-        return "{{ '" + m.group(1) + "' | translate }}"
-    # func($var) → {{ var | func }}
-    m = re.match(r'<\?(?:php)?\s+echo\s+(\w+)\(\$(\w+)\);\s*\?>', php)
-    if m:
-        return "{{ " + m.group(2) + " | " + m.group(1) + " }}"
-    # $var → {{ var }}
-    m = re.match(r'<\?(?:php)?\s+echo\s+\$(\w+);\s*\?>', php)
-    if m:
-        return "{{ " + m.group(1) + " }}"
-    # BuilderModule('name',[...]) → <name></name>
-    m = re.match(r'<\?(?:php)?\s+echo\s+BuilderModule\([\'"](\w+)[\'"],\s*\[.*?\]\);\s*\?>', php)
-    if m:
-        return "<" + m.group(1) + "></" + m.group(1) + ">"
-    # Fallback: return decoded PHP as-is
-    return php
-
-
-def _convert_real_to_twig(content):
-    """Replace |*base64*| blocks in real_header/real_footer with Twig equivalents."""
-    def _replace(match):
-        try:
-            decoded = base64.b64decode(match.group(1)).decode("utf-8")
-            return _php_block_to_twig(decoded)
-        except Exception:
-            return match.group(0)
-    return re.sub(r'\|\*([A-Za-z0-9+/=]+)\*\|', _replace, content)
-
-
-def save_hooks_from_api(hooks_data, hooks_dir):
-    """Save hooks from API response as .php files in hooks/ directory."""
-    os.makedirs(hooks_dir, exist_ok=True)
-    count = 0
-    for hook in hooks_data:
-        endpoint = hook.get("endPoint", "")
-        code = hook.get("code", "")
-        if not endpoint or not code or code == "code_hidden_for_security":
-            continue
-        # /api/search/ -> api.search.php
-        parts = [p for p in endpoint.strip("/").split("/") if p]
-        if not parts:
-            continue
-        filename = ".".join(parts) + ".php"
-        # |*<base64>*| -> raw PHP
-        if code.startswith("|*") and code.endswith("*|"):
-            code = code[2:-2]
-        try:
-            decoded = base64.b64decode(code).decode("utf-8", errors="replace")
-        except Exception:
-            continue
-        filepath = os.path.join(hooks_dir, filename)
-        with open(filepath, "w", encoding="utf-8") as f:
-            f.write(decoded)
-        count += 1
-    return count
-
-
-def find_free_port(start: int) -> int:
-    port = start
-    while port < start + 100:
-        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-            if s.connect_ex(("127.0.0.1", port)) != 0:
-                return port
-        port += 1
-    return start
-
-
-def run_cmd(args, timeout=120, env=None):
-    """Ejecuta un comando y devuelve (returncode, stdout, stderr)."""
-    try:
-        proc = subprocess.run(
-            args,
-            capture_output=True,
-            text=True,
-            timeout=timeout,
-            env=env,
-        )
-        return proc.returncode, proc.stdout, proc.stderr
-    except subprocess.TimeoutExpired:
-        return 1, "", "Timeout after {}s".format(timeout)
-    except Exception as e:
-        return 1, "", str(e)
-
-
-def refresh_acai_token(acai_file):
-    """Re-authenticate with Acai and update token in .acai file.
-
-    Uses stored credentials (config username + Keychain password) and the
-    domain info already present in the .acai marker to obtain a fresh token.
-    Returns (token, error_msg).
-    """
-    try:
-        with open(str(acai_file), "r", encoding="utf-8") as f:
-            acai_data = json.load(f)
-    except Exception as e:
-        return "", "Error leyendo .acai: {}".format(e)
-
-    domain_name = acai_data.get("domain", "")
-    if not domain_name:
-        return "", "Sin dominio en .acai"
-
-    config = load_config()
-    username = config.get("acai_username", "")
-    password = keychain_get("acai")
-    if not username or not password:
-        return acai_data.get("token", ""), ""  # No credentials, keep existing token
-
-    # Step 1: SimpleAuth
-    creds = base64.b64encode("{}:{}".format(username, password).encode()).decode()
-    result = acai_request("SimpleAuth {}".format(creds))
-    if not result.get("success") and not result.get("data"):
-        return "", "Auth fallido: {}".format(result.get("error", ""))
-
-    data = result.get("data", {})
-    session_hash = data.get("hash", "")
-    domains = data.get("domains", [])
-
-    # Find matching domain num
-    domain_num = ""
-    for d in domains:
-        if isinstance(d, dict) and d.get("domain") == domain_name:
-            domain_num = str(d.get("num", ""))
-            break
-
-    if not domain_num:
-        return "", "Dominio '{}' no encontrado en la cuenta".format(domain_name)
-
-    # Step 2: Login with domain
-    creds2 = base64.b64encode("{}:{}:{}".format(
-        username, session_hash, domain_num
-    ).encode()).decode()
-    result2 = acai_request("Login {}".format(creds2))
-    if not result2.get("success") and not result2.get("data"):
-        return "", "Login fallido: {}".format(result2.get("error", ""))
-
-    data2 = result2.get("data", {})
-    token = data2.get("token", data2.get("renewToken", ""))
-    token_hash = data2.get("tokenHash", "")
-
-    if not token:
-        return "", "No se obtuvo token"
-
-    # Update .acai file
-    acai_data["token"] = token
-    acai_data["tokenHash"] = token_hash
-    acai_data["token_updated"] = time.time()
-    try:
-        with open(str(acai_file), "w", encoding="utf-8") as f:
-            json.dump(acai_data, f, ensure_ascii=False, indent=2)
-    except Exception as e:
-        return token, "Token obtenido pero error guardando: {}".format(e)
-
-    return token, ""
-
-
-def _gitea_api(method, path, token=None, data=None):
-    """Call Gitea REST API using Basic auth. Returns dict with response or {"error": "..."}."""
-    config = load_config()
-    base = config.get("gitea_url", "").rstrip("/")
-    if not base:
-        return {"error": "gitea_url not configured"}
-    url = "{}/api/v1{}".format(base, path)
-    body = json.dumps(data).encode() if data else None
-    # Use Basic auth with username + password from keychain
-    username = config.get("gitea_username", "")
-    password = keychain_get("gitea") or token or ""
-    creds = base64.b64encode("{}:{}".format(username, password).encode()).decode()
-    req = urllib.request.Request(
-        url,
-        data=body,
-        headers={
-            "Content-Type": "application/json",
-            "Authorization": "Basic {}".format(creds),
-        },
-        method=method,
-    )
-    try:
-        with urllib.request.urlopen(req, timeout=15) as resp:
-            return json.loads(resp.read().decode())
-    except urllib.error.HTTPError as e:
-        err_body = e.read().decode()
-        try:
-            return json.loads(err_body)
-        except json.JSONDecodeError:
-            return {"error": "HTTP {}: {}".format(e.code, err_body[:200])}
-    except Exception as e:
-        return {"error": str(e)}
-
-
-ACAI_GITIGNORE = """\
-/*
-!hooks/
-!template/
-template/*
-!template/estandar/
-template/estandar/*
-!template/estandar/modulos/
-!cms/
-cms/*
-!cms/lib/
-cms/lib/*
-!cms/lib/plugins/
-cms/uploads/
-**/minified/
-.docker/
-.acai
-database.sql
-*.sql.gz
-node_modules/
-.DS_Store
-Thumbs.db
-.module-queue.json
-"""
-
-
-def _write_gitignore(dest):
-    """Write standard Acai .gitignore (always overwrites to keep in sync)."""
-    gi = Path(dest) / ".gitignore"
-    gi.write_text(ACAI_GITIGNORE, encoding="utf-8")
-    return str(gi)
-
-
-def _git_remote_url(config, domain):
-    """Build the Gitea remote URL with embedded credentials."""
-    gitea_url = config.get("gitea_url", "")
-    username = config.get("gitea_username", "")
-    token = keychain_get("gitea") or ""
-    org = config.get("gitea_org", "acai")
-    # URL-encode credentials to handle special chars (:, @, etc.)
-    safe_user = urllib.parse.quote(username, safe="")
-    safe_token = urllib.parse.quote(token, safe="")
-    # Parse host from URL
-    parsed = urllib.parse.urlparse(gitea_url)
-    host = parsed.netloc or parsed.path
-    scheme = parsed.scheme or "http"
-    repo_name = "sync-{}".format(domain)
-    return "{}://{}:{}@{}/{}/{}.git".format(scheme, safe_user, safe_token, host, org, repo_name)
-
-
-def _git_connect_repo(dest, domain, config, create_if_missing=False):
-    """Connect a local folder to its Gitea repo.
-
-    If create_if_missing=False (default, used during auto-pull):
-      - Only connects if the repo already exists in Gitea
-      - If repo doesn't exist, does nothing (user must click "Iniciar Git")
-
-    If create_if_missing=True (used when user clicks "Iniciar Git"):
-      - Creates the repo in Gitea if it doesn't exist
-
-    Returns list of step messages.
-    """
-    steps = []
-    password = keychain_get("gitea")
-    if not password:
-        return ["Sin token Gitea configurado"]
-
-    dest = str(dest)
-    org = config.get("gitea_org", "acai")
-    repo_name = "sync-{}".format(domain)
-
-    # 1. Check if repo exists in Gitea
-    check = _gitea_api("GET", "/repos/{}/{}".format(org, repo_name))
-    repo_exists = bool(check.get("id"))
-
-    if not repo_exists and not create_if_missing:
-        # Repo doesn't exist and we shouldn't create it — skip git setup
-        steps.append("Repo {}/{} no existe en Gitea (usa 'Iniciar Git' para crearlo)".format(org, repo_name))
-        return steps
-
-    if not repo_exists and create_if_missing:
-        # Create repo
-        repo_result = _gitea_api("POST", "/orgs/{}/repos".format(org), data={
-            "name": repo_name,
-            "private": True,
-            "auto_init": False,
-        })
-        if repo_result.get("id"):
-            steps.append("Repo creado: {}/{}".format(org, repo_name))
-            repo_exists = True
-        else:
-            err_msg = repo_result.get("error") or repo_result.get("message", "unknown")
-            steps.append("Error creando repo: {}".format(err_msg))
-            return steps
-    else:
-        steps.append("Repo existente: {}/{}".format(org, repo_name))
-
-    # 2. gitignore
-    _write_gitignore(dest)
-    steps.append(".gitignore escrito")
-
-    # 3. git init
-    rc, _, err = run_cmd(["git", "-C", dest, "init"], timeout=15)
-    if rc != 0:
-        steps.append("git init error: {}".format(err[:100]))
-        return steps
-    steps.append("git init")
-
-    # 4. Add remote
-    remote_url = _git_remote_url(config, domain)
-    run_cmd(["git", "-C", dest, "remote", "remove", "origin"], timeout=10)
-    run_cmd(["git", "-C", dest, "remote", "add", "origin", remote_url], timeout=10)
-
-    # 5. Fetch
-    rc, _, err = run_cmd(["git", "-C", dest, "fetch", "origin"], timeout=60)
-    if rc != 0:
-        steps.append("fetch error: {}".format(err[:100]))
-        return steps
-    steps.append("fetch OK")
-
-    # 6. Check if remote has a main branch with commits
-    rc_check, _, _ = run_cmd(["git", "-C", dest, "rev-parse", "origin/main"], timeout=10)
-    remote_has_commits = (rc_check == 0)
-
-    if remote_has_commits:
-        # Remote has history — align local to match it while keeping working tree files
-        run_cmd(["git", "-C", dest, "checkout", "-b", "main"], timeout=10)
-        rc, _, err = run_cmd(["git", "-C", dest, "reset", "origin/main"], timeout=15)
-        if rc == 0:
-            steps.append("Historial alineado con origin/main")
-        else:
-            steps.append("reset error: {}".format(err[:100]))
-        # Set upstream tracking
-        run_cmd(["git", "-C", dest, "branch", "--set-upstream-to=origin/main", "main"], timeout=10)
-        rc, status_out, _ = run_cmd(["git", "-C", dest, "status", "--porcelain"], timeout=10)
-        if rc == 0:
-            changed = len([l for l in status_out.strip().splitlines() if l.strip()]) if status_out.strip() else 0
-            if changed > 0:
-                steps.append("{} archivos locales difieren del repo".format(changed))
-            else:
-                steps.append("Archivos locales coinciden con el repo")
-    else:
-        # Remote is empty — initial commit + push
-        run_cmd(["git", "-C", dest, "add", "."], timeout=30)
-        run_cmd(["git", "-C", dest, "branch", "-M", "main"], timeout=10)
-        run_cmd(["git", "-C", dest, "commit", "-m", "Initial commit"], timeout=30)
-        rc, _, err = run_cmd(["git", "-C", dest, "push", "-u", "origin", "main"], timeout=60)
-        if rc == 0:
-            steps.append("Push inicial OK")
-        else:
-            steps.append("Push error: {}".format(err[:100]))
-
-    return steps
+from config import (
+    SCRIPT_DIR, DEFAULT_WEBS_DIR, DEFAULT_PORT, ACAI_AUTH_URL,
+    CONFIG_DIR, CONFIG_FILE, KEYCHAIN_SERVICE, DEFAULT_CONFIG,
+    load_config, save_config, get_webs_dir, get_web_base_dir,
+    get_docker_web_sh, keychain_get, keychain_set, keychain_delete,
+    _get_ssl_context, find_free_port, run_cmd, sanitize_path,
+    validate_container_name,
+)
+
+from acai_api import (
+    acai_request, _parse_php_json,
+    acai_web_request, acai_web_request_zip,
+    refresh_acai_token,
+)
+
+from git_ops import (
+    _gitea_api, ACAI_GITIGNORE, _write_gitignore,
+    _git_remote_url, _git_connect_repo,
+)
+
+from watcher import (
+    _watcher_log, _watcher_log_lock,
+    _watcher_log_add, _queue_read, _process_queue,
+    start_module_watcher, mark_pulling, unmark_pulling,
+)
 
 
 def _docker_web_env():
@@ -817,19 +202,6 @@ def get_projects():
             proj_data["acai_token"] = ""
 
     return list(projects.values())
-
-
-def sanitize_path(path_str):
-    """Valida que el path sea un directorio real y no escape."""
-    p = Path(os.path.expanduser(path_str)).resolve()
-    if not p.exists():
-        return None
-    return str(p)
-
-
-def validate_container_name(name):
-    """Solo permite caracteres seguros en nombres de contenedor."""
-    return bool(re.match(r'^[a-zA-Z0-9][a-zA-Z0-9_.-]*$', name))
 
 
 class Handler(http.server.BaseHTTPRequestHandler):
@@ -1206,7 +578,6 @@ class Handler(http.server.BaseHTTPRequestHandler):
             "success": rc == 0,
             "output": clean_out,
         })
-
 
     # ---- Local Webs ----
 
@@ -1623,6 +994,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
 
         dest = Path(dest_dir).expanduser().resolve()
 
+        # Suppress watcher for this project during pull
+        mark_pulling(str(dest))
+
         steps = []
         errors = []
 
@@ -1641,6 +1015,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 json.dump(marker_data, f, ensure_ascii=False, indent=2)
             steps.append("Directorio creado en {}".format(dest))
         except Exception as e:
+            unmark_pulling(str(dest))
             self.send_json({"success": False, "error": "Error creando directorio: {}".format(e)})
             return
 
@@ -1655,11 +1030,13 @@ class Handler(http.server.BaseHTTPRequestHandler):
             }
             result = acai_web_request_zip(domain, ssl_enabled, payload, timeout=120)
             if result.get("error"):
+                unmark_pulling(str(dest))
                 self.send_json({"success": False, "error": "getAcaiPackFiles: {}".format(result["error"])})
                 return
             zip_path = result["path"]
             steps.append("ZIP descargado")
         except Exception as e:
+            unmark_pulling(str(dest))
             self.send_json({"success": False, "error": "Error descargando ZIP: {}".format(e)})
             return
 
@@ -1669,9 +1046,11 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 zf.extractall(str(dest))
             steps.append("ZIP extraido")
         except zipfile.BadZipFile:
+            unmark_pulling(str(dest))
             self.send_json({"success": False, "error": "El servidor no devolvio un ZIP valido"})
             return
         except Exception as e:
+            unmark_pulling(str(dest))
             self.send_json({"success": False, "error": "Error extrayendo ZIP: {}".format(e)})
             return
         finally:
@@ -1763,6 +1142,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 git_steps = _git_connect_repo(dest, domain, config)
             except Exception as e:
                 git_steps.append("git auto-init error: {}".format(e))
+
+        # Resume watcher tracking for this project
+        unmark_pulling(str(dest))
 
         self.send_json({
             "success": True,
@@ -2124,267 +1506,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self.send_json({"success": False, "error": str(e), "steps": steps})
 
 
-# ---- Module watcher ----
-
-_watcher_log = []  # [{ts, level, msg}, ...]
-_watcher_log_lock = threading.Lock()
-MAX_WATCHER_LOG = 200
-
-
-def _watcher_log_add(level, msg):
-    """Add entry to watcher log buffer. level: info|error|warn"""
-    with _watcher_log_lock:
-        _watcher_log.append({
-            "ts": time.time(),
-            "level": level,
-            "msg": msg,
-        })
-        if len(_watcher_log) > MAX_WATCHER_LOG:
-            _watcher_log[:] = _watcher_log[-MAX_WATCHER_LOG:]
-    print("[watcher] {}".format(msg))
-    sys.stdout.flush()
-
-
-def _scan_modules_mtimes(web_dirs):
-    """Scan modulos/ dirs of all web directories and return {filepath: mtime}."""
-    mtimes = {}
-    for proj_dir in web_dirs:
-        modulos_dir = Path(proj_dir) / "template" / "estandar" / "modulos"
-        if not modulos_dir.is_dir():
-            modulos_dir = Path(proj_dir) / "modulos"
-        if not modulos_dir.is_dir():
-            continue
-        for f in modulos_dir.rglob("*"):
-            if f.is_file():
-                try:
-                    mtimes[str(f)] = f.stat().st_mtime
-                except OSError:
-                    pass
-    return mtimes
-
-
-def _read_module_files(mod_dir):
-    """Read all files from a module directory and return the payload for generateModuleFromString."""
-    mod_name = mod_dir.name
-    payload = {"id": mod_name, "editMode": True}
-
-    index_base = mod_dir / "index-base.tpl"
-    if index_base.is_file():
-        payload["html"] = index_base.read_text(encoding="utf-8", errors="replace")
-
-    index_tpl = mod_dir / "index.tpl"
-    if index_tpl.is_file():
-        payload["htmlParsed"] = index_tpl.read_text(encoding="utf-8", errors="replace")
-    elif "html" in payload:
-        payload["htmlParsed"] = payload["html"]
-
-    style = mod_dir / "style.css"
-    if style.is_file():
-        payload["style"] = style.read_text(encoding="utf-8", errors="replace")
-
-    script = mod_dir / "script.js"
-    if script.is_file():
-        payload["javascript"] = script.read_text(encoding="utf-8", errors="replace")
-
-    hook = mod_dir / "hook.php"
-    if hook.is_file():
-        payload["hook"] = hook.read_text(encoding="utf-8", errors="replace")
-
-    builder = mod_dir / "builder.json"
-    if builder.is_file():
-        try:
-            config = json.loads(builder.read_text(encoding="utf-8", errors="replace"))
-            payload["notParseComponents"] = config.get("notParseComponents", "0")
-            payload["label"] = config.get("label", mod_name)
-            payload["description"] = config.get("description", "")
-        except json.JSONDecodeError:
-            pass
-
-    return payload
-
-
-def _queue_file(project_dir):
-    """Return the path to the module queue file for a project."""
-    return Path(project_dir) / ".module-queue.json"
-
-
-def _queue_add(project_dir, module_name):
-    """Add a module name to the project's pending queue (no duplicates)."""
-    qf = _queue_file(project_dir)
-    queue = []
-    try:
-        if qf.exists():
-            queue = json.loads(qf.read_text(encoding="utf-8"))
-    except (json.JSONDecodeError, OSError):
-        queue = []
-    if module_name not in queue:
-        queue.append(module_name)
-    try:
-        qf.write_text(json.dumps(queue, ensure_ascii=False), encoding="utf-8")
-    except OSError as e:
-        _watcher_log_add("error", "Queue write error: {}".format(e))
-
-
-def _queue_read(project_dir):
-    """Read the list of pending module names for a project."""
-    qf = _queue_file(project_dir)
-    try:
-        if qf.exists():
-            return json.loads(qf.read_text(encoding="utf-8"))
-    except (json.JSONDecodeError, OSError):
-        pass
-    return []
-
-
-def _queue_clear(project_dir):
-    """Clear the module queue for a project."""
-    qf = _queue_file(project_dir)
-    try:
-        if qf.exists():
-            qf.unlink()
-    except OSError:
-        pass
-
-
-def _process_queue(project_dir, web_url):
-    """Process all queued modules for a project that just started."""
-    queue = _queue_read(project_dir)
-    if not queue:
-        return
-    _watcher_log_add("info", "Processing module queue ({} pending) for {}".format(
-        len(queue), Path(project_dir).name))
-    modulos_dir = Path(project_dir) / "template" / "estandar" / "modulos"
-    processed = 0
-    for mod_name in queue:
-        mod_dir = modulos_dir / mod_name
-        if mod_dir.is_dir():
-            _sync_module_to_local(mod_dir, web_url)
-            processed += 1
-        else:
-            _watcher_log_add("warning", "Queued module dir not found: {}".format(mod_name))
-    _queue_clear(project_dir)
-    _watcher_log_add("info", "Queue processed: {}/{} modules synced for {}".format(
-        processed, len(queue), Path(project_dir).name))
-
-
-def _sync_module_to_local(mod_dir, web_url):
-    """Send module files to the local Docker container via generateModuleFromString."""
-    mod_name = mod_dir.name
-    payload = _read_module_files(mod_dir)
-    if not payload.get("html") and not payload.get("style"):
-        return
-
-    # Extract port from web_url (e.g. http://localhost:8080)
-    match = re.search(r':(\d+)', web_url)
-    if not match:
-        _watcher_log_add("error", "Sync {}: no port in {}".format(mod_name, web_url))
-        return
-    port = match.group(1)
-    payload["action_ws"] = "generateModuleFromString"
-    url = "http://localhost:{}/cms/lib/viewer_functions.php".format(port)
-
-    try:
-        data = json.dumps(payload).encode()
-        req = urllib.request.Request(
-            url,
-            data=data,
-            headers={"Content-Type": "application/json"},
-            method="POST",
-        )
-        with urllib.request.urlopen(req, timeout=30) as resp:
-            result = json.loads(resp.read().decode())
-        if result.get("error"):
-            _watcher_log_add("error", "Sync {}: {}".format(mod_name, result["error"]))
-        else:
-            _watcher_log_add("info", "Synced: {}".format(mod_name))
-    except Exception as e:
-        _watcher_log_add("error", "Sync {}: {}".format(mod_name, e))
-
-
-def _on_module_changed(changed_files, running_projects):
-    """Detect changed modules and sync them to their local Docker containers if running."""
-    # Group changed files by module directory
-    changed_modules = {}  # {mod_dir_str: mod_dir_path}
-    for filepath in changed_files:
-        parts = Path(filepath).parts
-        try:
-            idx = parts.index("modulos")
-            if idx + 1 < len(parts):
-                mod_dir = Path(*parts[:idx + 2])
-                changed_modules[str(mod_dir)] = mod_dir
-                _watcher_log_add("info", "Changed: {}/{}".format(
-                    parts[idx + 1], parts[idx + 2] if idx + 2 < len(parts) else ""))
-        except ValueError:
-            _watcher_log_add("info", "Changed: {}".format(Path(filepath).name))
-
-    # Map running project dirs to web URLs (only running projects can receive syncs)
-    proj_map = {}
-    for proj in running_projects:
-        pdir = proj.get("project_dir", "")
-        web_url = proj.get("web_url", "")
-        if pdir and web_url:
-            proj_map[pdir] = web_url
-
-    # Resolve webs_dir for extracting project dirs from file paths
-    webs_dir = get_webs_dir()
-
-    # Sync each changed module to its container, or queue if not running
-    for mod_dir_str, mod_dir in changed_modules.items():
-        synced = False
-        for pdir, web_url in proj_map.items():
-            if mod_dir_str.startswith(pdir):
-                _sync_module_to_local(mod_dir, web_url)
-                synced = True
-                break
-        if not synced:
-            # Project not running — extract project_dir and queue the module
-            try:
-                rel = Path(mod_dir_str).relative_to(webs_dir)
-                project_name = rel.parts[0]
-                project_dir = str(webs_dir / project_name)
-                mod_name = mod_dir.name
-                _queue_add(project_dir, mod_name)
-                _watcher_log_add("info", "Queued (offline): {} for {}".format(
-                    mod_name, project_name))
-            except (ValueError, IndexError):
-                pass
-
-
-def start_module_watcher(interval=2):
-    """Start a background thread that watches modulos/ in all downloaded webs."""
-    def _watch_loop():
-        mtimes = {}
-        while True:
-            time.sleep(interval)
-            try:
-                # Scan ALL webs, not just running ones
-                webs_dir = get_webs_dir()
-                if not webs_dir.is_dir():
-                    continue
-                web_dirs = [str(item) for item in webs_dir.iterdir()
-                            if item.is_dir() and not item.name.startswith(".")]
-                running_projects = get_projects()
-            except Exception:
-                continue
-            new_mtimes = _scan_modules_mtimes(web_dirs)
-            if mtimes:
-                changed = [
-                    f for f in new_mtimes
-                    if new_mtimes.get(f) != mtimes.get(f)
-                ]
-                # Also detect new files
-                new_files = [f for f in new_mtimes if f not in mtimes]
-                all_changed = list(set(changed + new_files))
-                if all_changed:
-                    _on_module_changed(all_changed, running_projects)
-            mtimes = new_mtimes
-
-    t = threading.Thread(target=_watch_loop, daemon=True)
-    t.start()
-    print("Module watcher active (interval={}s)".format(interval))
-    sys.stdout.flush()
-    return t
-
+# ---- Auto-reload ----
 
 def _get_watch_files():
     """Return dict {filepath: mtime} for files to watch in reload mode."""
@@ -2438,7 +1560,7 @@ def start_server(port=DEFAULT_PORT):
     server = http.server.HTTPServer(("127.0.0.1", port), Handler)
     print("Docker Web GUI running at http://localhost:{}".format(port))
     sys.stdout.flush()
-    start_module_watcher()
+    start_module_watcher(get_projects_fn=get_projects)
     return server, port
 
 

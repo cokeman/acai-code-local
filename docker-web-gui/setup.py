@@ -11,7 +11,7 @@ APP = ["tray_app.py"]
 DATA_FILES = [("", ["index.html", "icon_menu.png", "../docker-web.sh"])]
 OPTIONS = {
     "argv_emulation": False,
-    "includes": ["server"],
+    "includes": ["server", "config", "acai_api", "git_ops", "watcher"],
     "plist": {
         "CFBundleName": "Docker Web GUI",
         "CFBundleDisplayName": "Docker Web GUI",
