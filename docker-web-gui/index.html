@@ -1498,6 +1498,8 @@ function showPage(pageId, navEl) {
   if (page) page.classList.add('active');
   if (navEl) navEl.classList.add('active');
   if (pageId === 'settings') loadSettings();
+  if (pageId === 'projects') refreshProjects();
+  if (pageId === 'webs-locales') refreshLocalWebs();
   // Actualizar hash sin disparar hashchange
   history.replaceState(null, '', '#' + pageId);
 }
@@ -1634,10 +1636,10 @@ function renderProjectCard(p) {
       <div class="info-row-icon tunnel"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 12m-9 0a9 9 0 1 0 18 0a9 9 0 1 0 -18 0"/><path d="M12 12m-3 0a3 3 0 1 0 6 0a3 3 0 1 0 -6 0"/><path d="M12 9h8.4"/><path d="M14.598 13.5l-4.2 7.275"/><path d="M9.402 13.5l-4.2 -7.275"/></svg></div>
       <div class="info-row-content">
         <div class="info-row-label">Tunnel público</div>
-        <div class="info-row-value"><a href="${escapeAttr(p.tunnel_url)}" target="_blank">${escapeHtml(p.tunnel_url.replace('https://', ''))}</a></div>
+        <div class="info-row-value"><a href="https://${escapeAttr(p.tunnel_url)}" target="_blank">${escapeHtml(p.tunnel_url)}</a></div>
       </div>
       <div class="info-row-actions">
-        <button class="btn btn-secondary btn-sm" onclick="navigator.clipboard.writeText('${escapeAttr(p.tunnel_url)}')">Copiar</button>
+        <button class="btn btn-secondary btn-sm" onclick="navigator.clipboard.writeText('https://${escapeAttr(p.tunnel_url)}')">Copiar</button>
       </div>
     </div>` : '';
 
@@ -1683,7 +1685,7 @@ function renderProjectCard(p) {
       </div>
       ${hasInfoRows ? `<div class="info-rows">${webRow}${tunnelRow}${dbRow}</div>` : ''}
       <div class="project-footer">
-        ${p.tunnel_url ? `<button class="btn btn-primary btn-sm btn-icon" onclick="window.open('${escapeAttr(p.tunnel_url)}', '_blank')"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 12m-9 0a9 9 0 1 0 18 0a9 9 0 1 0 -18 0"/><path d="M12 12m-3 0a3 3 0 1 0 6 0a3 3 0 1 0 -6 0"/><path d="M12 9h8.4"/><path d="M14.598 13.5l-4.2 7.275"/><path d="M9.402 13.5l-4.2 -7.275"/></svg> Abrir</button>` : ''}
+        ${p.tunnel_url ? `<button class="btn btn-primary btn-sm btn-icon" onclick="window.open('https://${escapeAttr(p.tunnel_url)}', '_blank')"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 12m-9 0a9 9 0 1 0 18 0a9 9 0 1 0 -18 0"/><path d="M12 12m-3 0a3 3 0 1 0 6 0a3 3 0 1 0 -6 0"/><path d="M12 9h8.4"/><path d="M14.598 13.5l-4.2 7.275"/><path d="M9.402 13.5l-4.2 -7.275"/></svg> Abrir</button>` : ''}
         ${p.project_dir ? `<button class="btn btn-secondary btn-sm btn-icon" onclick="openInVSCode('${escapeAttr(p.project_dir)}')"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M16 3v18l4 -2.5v-13z"/><path d="M9.165 13.903l-4.165 3.597l-2 -1l4.333 -4.5m1.735 -1.802l6.932 -7.198v5l-4.795 4.141"/><path d="M16 16.5l-11 -10l-2 1l13 13.5"/></svg> VSCode</button>` : ''}
         ${p.tunnel_url && p.acai_domain ? `<button class="btn btn-secondary btn-sm btn-icon" onclick="openCmsAdmin('${p.acai_token || ''}', '${p.acai_domain}', '${p.tunnel_url}', '${p.db_user || ''}', '${p.db_pass || ''}', '${p.db_name || ''}', '${p.bore_db_url || ''}')"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 5m0 2a2 2 0 0 1 2 -2h14a2 2 0 0 1 2 2v10a2 2 0 0 1 -2 2h-14a2 2 0 0 1 -2 -2z"/><path d="M7 15v-4a2 2 0 0 1 4 0v4"/><path d="M7 13l4 0"/><path d="M17 9v6h-1.5a1.5 1.5 0 1 1 1.5 -1.5"/></svg> CMS</button>` : ''}
       </div>

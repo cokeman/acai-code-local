@@ -317,16 +317,10 @@ RUN echo "ServerName localhost" >> /etc/apache2/apache2.conf && \\
     echo "AddType text/css .vue" >> /etc/apache2/conf-available/custom-mime.conf && \\
     a2enconf custom-mime
 
-# Cliente MariaDB para importar SQL + curl
-RUN apt-get update && apt-get install -y mariadb-client curl && rm -rf /var/lib/apt/lists/*
+# Cliente MariaDB, curl, ImageMagick (mogrify) y WebP (cwebp)
+RUN apt-get update && apt-get install -y mariadb-client curl imagemagick webp && rm -rf /var/lib/apt/lists/*
 
-# Cloudflared para tunel publico
-RUN ARCH=\$(dpkg --print-architecture) && \\
-    curl -L "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-\${ARCH}" \\
-    -o /usr/local/bin/cloudflared && \\
-    chmod +x /usr/local/bin/cloudflared
-
-# Bore para tunel TCP de la BD
+# Bore para tuneles TCP (web + BD)
 RUN ARCH=\$(dpkg --print-architecture) && \\
     if [ "\$ARCH" = "amd64" ]; then BORE_ARCH="x86_64"; else BORE_ARCH="aarch64"; fi && \\
     curl -L "https://github.com/ekzhang/bore/releases/download/v0.6.0/bore-v0.6.0-\${BORE_ARCH}-unknown-linux-musl.tar.gz" \\
@@ -385,32 +379,43 @@ msg "Generado init.sh"
 
 cat > "$DOCKER_DIR/tunnel.sh" <<'TUNNELEOF'
 #!/bin/bash
+BORE_SERVER="46.101.52.52"
+
+# Bore: tunel TCP para la web (puerto 443/SSL)
 TUNNEL_URL_FILE="/tunnel-url/tunnel-url.txt"
 echo "" > "$TUNNEL_URL_FILE"
 
-cloudflared tunnel --url http://localhost:80 2>&1 | while IFS= read -r line; do
-    url=$(echo "$line" | grep -oE 'https://[a-zA-Z0-9-]+\.trycloudflare\.com')
-    if [ -n "$url" ]; then
-        echo "$url" > "$TUNNEL_URL_FILE"
-        echo "[tunnel] URL publica: $url"
-    fi
-done &
+BORE_WEB_LOG="/tmp/bore-web.log"
+bore local 443 --to "$BORE_SERVER" > "$BORE_WEB_LOG" 2>&1 &
 
-echo "[tunnel] Cloudflared iniciado en background"
-
-# Bore: tunel TCP para la base de datos
-BORE_URL_FILE="/tunnel-url/bore-db-url.txt"
-echo "" > "$BORE_URL_FILE"
-
-BORE_LOG="/tmp/bore.log"
-bore local 3306 --local-host db --to 46.101.52.52 > "$BORE_LOG" 2>&1 &
-
-# Esperar a que bore escriba la URL (max 15s)
 (
     for i in $(seq 1 30); do
         sleep 0.5
-        if [ -f "$BORE_LOG" ]; then
-            addr=$(sed 's/\x1b\[[0-9;]*m//g' "$BORE_LOG" | grep -oE '46\.101\.52\.52:[0-9]+' | head -1)
+        if [ -f "$BORE_WEB_LOG" ]; then
+            addr=$(sed 's/\x1b\[[0-9;]*m//g' "$BORE_WEB_LOG" | grep -oE "${BORE_SERVER}:[0-9]+" | head -1)
+            if [ -n "$addr" ]; then
+                echo "$addr" > "$TUNNEL_URL_FILE"
+                echo "[bore] Web tunnel: $addr"
+                break
+            fi
+        fi
+    done
+) &
+
+echo "[bore] Bore web iniciado en background"
+
+# Bore: tunel TCP para la base de datos (puerto 3306)
+BORE_URL_FILE="/tunnel-url/bore-db-url.txt"
+echo "" > "$BORE_URL_FILE"
+
+BORE_DB_LOG="/tmp/bore-db.log"
+bore local 3306 --local-host db --to "$BORE_SERVER" > "$BORE_DB_LOG" 2>&1 &
+
+(
+    for i in $(seq 1 30); do
+        sleep 0.5
+        if [ -f "$BORE_DB_LOG" ]; then
+            addr=$(sed 's/\x1b\[[0-9;]*m//g' "$BORE_DB_LOG" | grep -oE "${BORE_SERVER}:[0-9]+" | head -1)
             if [ -n "$addr" ]; then
                 echo "$addr" > "$BORE_URL_FILE"
                 echo "[bore] DB tunnel: $addr"
@@ -420,7 +425,7 @@ bore local 3306 --local-host db --to 46.101.52.52 > "$BORE_LOG" 2>&1 &
     done
 ) &
 
-echo "[bore] Bore iniciado en background"
+echo "[bore] Bore DB iniciado en background"
 TUNNELEOF
 
 chmod +x "$DOCKER_DIR/tunnel.sh"
@@ -674,7 +679,7 @@ if $WITH_REDIS; then
 msg "  Redis:    disponible internamente en redis:6379"
 fi
 
-# Esperar URL del tunel (max 15 segundos)
+# Esperar URL del tunel web (max 15 segundos)
 TUNNEL_URL=""
 msg "  Tunnel:   esperando URL publica..."
 for i in $(seq 1 15); do
@@ -685,7 +690,7 @@ for i in $(seq 1 15); do
     sleep 1
 done
 if [[ -n "$TUNNEL_URL" ]]; then
-    msg "  Tunnel:   ${TUNNEL_URL}"
+    msg "  Tunnel:   https://${TUNNEL_URL}"
 else
     warn "  Tunnel:   no disponible (sin conexion a internet?)"
 fi

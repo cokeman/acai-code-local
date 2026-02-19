@@ -2,6 +2,7 @@
 
 	define("CMS_FOLDER","cms");
 	define("CMS_VIEWER_LIB",CMS_FOLDER."/lib/viewer_functions.php");
+	define('USAR_WEBP', false);
 
 	require_once str_replace("/lib","",dirname(__FILE__))."/".CMS_VIEWER_LIB;
 
@@ -26,14 +27,14 @@
 
 	// Cache local que cachea las consultas en cada petición cuando se repitan (sin Redis)
 
-	CocoDB::$noCacheURIS = ["\/mi(s)?-(.*)(\/)(.*)","\/hooks\/(.*)?","\/login\/(.*)?"];
-	CocoDB::$noCacheTABLES = ["aux_plg_payments","cms_cestas_abandonadas","cms_direcciones","cms_posibles_pedidos","cms_stock","cms_usuarios_metas","cms_usuarios"];
+//	CocoDB::$noCacheURIS = ["\/mi(s)?-(.*)(\/)(.*)","\/hooks\/(.*)?","\/login\/(.*)?"];
+//	CocoDB::$noCacheTABLES = ["aux_plg_payments","cms_cestas_abandonadas","cms_direcciones","cms_posibles_pedidos","cms_stock","cms_usuarios_metas","cms_usuarios"];
 //
 //	// Activamos el Cache en general y de consultas
-	CocoDB::fullCache(3);
+//	CocoDB::fullCache(3);
 //
 //	// Activamos el Cache local que cache las consultas en cada carga cuando se repitan
-	CocoDB::localCache();
+//	CocoDB::localCache();
 //
 //	CocoDB::$force_redis_module = @CocoDB::bloquedCacheByURL($_SERVER["REQUEST_URI"]) ? false : true;
 //	CocoDB::$force_redis_html = @CocoDB::bloquedCacheByURL($_SERVER["REQUEST_URI"]) ? false : true;
