@@ -1,5 +1,4 @@
 <?
-require_once "schemas/LocalBusinessSchema.php";
 
 $otros_contenidos = dame_registros("otros_contenidos", "visible_en_el_menu=1", "siblingOrder DESC");
 $config_footer 	= 	array(
@@ -12,6 +11,4 @@ $config_footer 	= 	array(
 						'apartadoCesta'				=>	@$apartadoCesta
 					);
 
-$schema = new LocalBusinessSchema($configuracionRecord);
-$schema->printJSON();
 if (@$customCode) echo modulo('custom-footer',$config_footer); else echo tpl('pie',$config_footer);	

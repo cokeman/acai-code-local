@@ -1,1 +1,0 @@
- alert("esto es categorias 2");

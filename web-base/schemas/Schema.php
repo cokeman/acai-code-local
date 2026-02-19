@@ -1,5 +1,0 @@
-<?
-interface Schema {
-    function printJSON();
-}
-?>
