@@ -619,6 +619,14 @@ input:read-only { opacity: 0.5; cursor: default; }
   background: rgba(234,179,8,0.18);
   color: #eab308;
 }
+.badge-queue {
+  font-size: 10px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: rgba(249,115,22,0.15);
+  color: #f97316;
+  font-weight: 600;
+}
 
 .acai-logged-bar {
   display: flex;
@@ -2278,6 +2286,8 @@ async function checkServerSyncStatus() {
 function renderLocalWebCard(w) {
   const runBadge = w.running ? '<span class="badge badge-running">Running</span>' : '';
   const acaiBadge = w.acai ? '<span class="badge-acai">Acai</span>' : '';
+  const pendingN = w.pending_modules || 0;
+  const queueBadge = pendingN > 0 ? `<span class="badge-queue" title="${pendingN} módulo${pendingN !== 1 ? 's' : ''} pendiente${pendingN !== 1 ? 's' : ''} de compilar">${pendingN} pendiente${pendingN !== 1 ? 's' : ''}</span>` : '';
 
   // Git badges
   let gitStatusHtml = '';
@@ -2367,6 +2377,7 @@ function renderLocalWebCard(w) {
           ${runBadge}
           ${acaiBadge}
           ${gitConnBadge}
+          ${queueBadge}
         </div>
         <span class="local-web-date">${dateStr}</span>
       </div>

@@ -528,6 +528,7 @@ database.sql
 node_modules/
 .DS_Store
 Thumbs.db
+.module-queue.json
 """
 
 
@@ -1132,6 +1133,26 @@ class Handler(http.server.BaseHTTPRequestHandler):
         ansi_escape = re.compile(r'\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])')
         clean_out = ansi_escape.sub('', out + err)
 
+        # Process pending module queue after successful launch
+        if rc == 0 and _queue_read(path):
+            def _deferred_queue_process(project_dir):
+                """Poll get_projects() until the project appears, then process its queue."""
+                for _ in range(30):
+                    time.sleep(1)
+                    try:
+                        for proj in get_projects():
+                            if proj.get("project_dir") == project_dir and proj.get("web_url"):
+                                _process_queue(project_dir, proj["web_url"])
+                                return
+                    except Exception:
+                        pass
+                _watcher_log_add("warning",
+                    "Queue: could not find running project for {}".format(
+                        Path(project_dir).name))
+            threading.Thread(
+                target=_deferred_queue_process, args=(path,), daemon=True
+            ).start()
+
         self.send_json({
             "success": rc == 0,
             "output": token_msg + clean_out,
@@ -1291,6 +1312,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     except Exception:
                         pass
                 entry["needs_migration"] = needs_migration
+                entry["pending_modules"] = len(_queue_read(str(item)))
                 webs.append(entry)
         except PermissionError:
             pass
@@ -2123,13 +2145,10 @@ def _watcher_log_add(level, msg):
     sys.stdout.flush()
 
 
-def _scan_modules_mtimes(projects):
-    """Scan modulos/ dirs of running projects and return {filepath: mtime}."""
+def _scan_modules_mtimes(web_dirs):
+    """Scan modulos/ dirs of all web directories and return {filepath: mtime}."""
     mtimes = {}
-    for proj in projects:
-        proj_dir = proj.get("project_dir", "")
-        if not proj_dir:
-            continue
+    for proj_dir in web_dirs:
         modulos_dir = Path(proj_dir) / "template" / "estandar" / "modulos"
         if not modulos_dir.is_dir():
             modulos_dir = Path(proj_dir) / "modulos"
@@ -2184,6 +2203,70 @@ def _read_module_files(mod_dir):
     return payload
 
 
+def _queue_file(project_dir):
+    """Return the path to the module queue file for a project."""
+    return Path(project_dir) / ".module-queue.json"
+
+
+def _queue_add(project_dir, module_name):
+    """Add a module name to the project's pending queue (no duplicates)."""
+    qf = _queue_file(project_dir)
+    queue = []
+    try:
+        if qf.exists():
+            queue = json.loads(qf.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError):
+        queue = []
+    if module_name not in queue:
+        queue.append(module_name)
+    try:
+        qf.write_text(json.dumps(queue, ensure_ascii=False), encoding="utf-8")
+    except OSError as e:
+        _watcher_log_add("error", "Queue write error: {}".format(e))
+
+
+def _queue_read(project_dir):
+    """Read the list of pending module names for a project."""
+    qf = _queue_file(project_dir)
+    try:
+        if qf.exists():
+            return json.loads(qf.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError):
+        pass
+    return []
+
+
+def _queue_clear(project_dir):
+    """Clear the module queue for a project."""
+    qf = _queue_file(project_dir)
+    try:
+        if qf.exists():
+            qf.unlink()
+    except OSError:
+        pass
+
+
+def _process_queue(project_dir, web_url):
+    """Process all queued modules for a project that just started."""
+    queue = _queue_read(project_dir)
+    if not queue:
+        return
+    _watcher_log_add("info", "Processing module queue ({} pending) for {}".format(
+        len(queue), Path(project_dir).name))
+    modulos_dir = Path(project_dir) / "template" / "estandar" / "modulos"
+    processed = 0
+    for mod_name in queue:
+        mod_dir = modulos_dir / mod_name
+        if mod_dir.is_dir():
+            _sync_module_to_local(mod_dir, web_url)
+            processed += 1
+        else:
+            _watcher_log_add("warning", "Queued module dir not found: {}".format(mod_name))
+    _queue_clear(project_dir)
+    _watcher_log_add("info", "Queue processed: {}/{} modules synced for {}".format(
+        processed, len(queue), Path(project_dir).name))
+
+
 def _sync_module_to_local(mod_dir, web_url):
     """Send module files to the local Docker container via generateModuleFromString."""
     mod_name = mod_dir.name
@@ -2218,8 +2301,8 @@ def _sync_module_to_local(mod_dir, web_url):
         _watcher_log_add("error", "Sync {}: {}".format(mod_name, e))
 
 
-def _on_module_changed(changed_files, projects):
-    """Detect changed modules and sync them to their local Docker containers."""
+def _on_module_changed(changed_files, running_projects):
+    """Detect changed modules and sync them to their local Docker containers if running."""
     # Group changed files by module directory
     changed_modules = {}  # {mod_dir_str: mod_dir_path}
     for filepath in changed_files:
@@ -2234,34 +2317,56 @@ def _on_module_changed(changed_files, projects):
         except ValueError:
             _watcher_log_add("info", "Changed: {}".format(Path(filepath).name))
 
-    # Map project dirs to web URLs
+    # Map running project dirs to web URLs (only running projects can receive syncs)
     proj_map = {}
-    for proj in projects:
+    for proj in running_projects:
         pdir = proj.get("project_dir", "")
         web_url = proj.get("web_url", "")
         if pdir and web_url:
             proj_map[pdir] = web_url
 
-    # Sync each changed module to its container
+    # Resolve webs_dir for extracting project dirs from file paths
+    webs_dir = get_webs_dir()
+
+    # Sync each changed module to its container, or queue if not running
     for mod_dir_str, mod_dir in changed_modules.items():
-        # Find which project this module belongs to
+        synced = False
         for pdir, web_url in proj_map.items():
             if mod_dir_str.startswith(pdir):
                 _sync_module_to_local(mod_dir, web_url)
+                synced = True
                 break
+        if not synced:
+            # Project not running — extract project_dir and queue the module
+            try:
+                rel = Path(mod_dir_str).relative_to(webs_dir)
+                project_name = rel.parts[0]
+                project_dir = str(webs_dir / project_name)
+                mod_name = mod_dir.name
+                _queue_add(project_dir, mod_name)
+                _watcher_log_add("info", "Queued (offline): {} for {}".format(
+                    mod_name, project_name))
+            except (ValueError, IndexError):
+                pass
 
 
 def start_module_watcher(interval=2):
-    """Start a background thread that watches modulos/ in running projects."""
+    """Start a background thread that watches modulos/ in all downloaded webs."""
     def _watch_loop():
         mtimes = {}
         while True:
             time.sleep(interval)
             try:
-                projects = get_projects()
+                # Scan ALL webs, not just running ones
+                webs_dir = get_webs_dir()
+                if not webs_dir.is_dir():
+                    continue
+                web_dirs = [str(item) for item in webs_dir.iterdir()
+                            if item.is_dir() and not item.name.startswith(".")]
+                running_projects = get_projects()
             except Exception:
                 continue
-            new_mtimes = _scan_modules_mtimes(projects)
+            new_mtimes = _scan_modules_mtimes(web_dirs)
             if mtimes:
                 changed = [
                     f for f in new_mtimes
@@ -2271,7 +2376,7 @@ def start_module_watcher(interval=2):
                 new_files = [f for f in new_mtimes if f not in mtimes]
                 all_changed = list(set(changed + new_files))
                 if all_changed:
-                    _on_module_changed(all_changed, projects)
+                    _on_module_changed(all_changed, running_projects)
             mtimes = new_mtimes
 
     t = threading.Thread(target=_watch_loop, daemon=True)
