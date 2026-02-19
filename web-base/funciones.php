@@ -12,8 +12,10 @@ if (!file_exists(__DIR__.'/'.CMS_FOLDER.'/uploads/webp/')) {
 	mkdir(__DIR__.'/'.CMS_FOLDER.'/uploads/webp/');
 }
 global $configuracionTienda;
-$configuracionRecord = dame_registros("configuracion","","",1);$configuracionRecord=@$configuracionRecord[0];
-$configuracionTienda = dame_registros("configuracion_tienda","","",1); $configuracionTienda = @$configuracionTienda[0];
+$configuracionRecord = CocoDB::get("configuracion", "", null, 1);
+$configuracionRecord = @$configuracionRecord[0];
+$configuracionTienda = CocoDB::get("configuracion_tienda", "", null, 1);
+$configuracionTienda = @$configuracionTienda[0];
 define("HAY_TIENDA", @$configuracionTienda["tienda_activa"]);
 
 if (@$configuracionRecord["pagina_publicada"] && !@$_SESSION["pruebas"]) error_reporting(0);
@@ -62,103 +64,17 @@ function hasRecaptcha() {
 	return @$configuracionRecord["site_key_recaptcha"] && @$configuracionRecord["secret_key_recaptcha"];
 }
 
-function dame_registros($tabla,$where="",$order="",$limit=1000,$depth=0){
-	global $TABLE_PREFIX;
-	list($configuracionRecords, $configuracionMetaData,$schema) = getRecords(array(
-		'tableName'   =>  $tabla,
-		'where'       =>  $where,
-		'allowSearch' =>  0,
-		'orderBy'     =>  $order,
-		'limit'       =>  $limit
-	));
-	
-	/*
-    EXPERIMENTAL - EN DESARROLLO
-    */
-	foreach ($configuracionRecords as $index => $record) {
-		if (@$schema["menuType"] == "category"){
-			$configuracionRecords[$index]["childs"] = mysql_num_rows(mysql_query("SELECT * FROM ".$TABLE_PREFIX.$tabla." WHERE parentNum=".$record["num"]));
-		}
-		foreach ($record as $key => $value) {
-			if (!isset($schema[$key]["type"]) || !is_array($schema[$key])) continue;
-			switch (@$schema[$key]["type"]) {
-				case "list":
-					if (@$schema[$key]["optionsType"] == "table") {
-						$nums = array_filter(explode("\t", $value ?? ''));
-						
-						if (@$nums && !$depth) {
-							$newSchema = loadSchema($schema[$key]["optionsTablename"]);
-							
-							if (@$newSchema["dragSortOrder"]) $order = "dragSortOrder DESC";
-							if (@$newSchema["siblingOrder"]) $order = "siblingOrder ASC";
-							if (!@$order) $order = "num DESC";
-							
-							$newRecord = dame_registros($schema[$key]["optionsTablename"], $schema[$key]["optionsValueField"]." IN (".join(",", $nums).")", $order,1000,1);
-							
-							$configuracionRecords[$index][$key."_bd"] = $newRecord;
-						}else {
-							$configuracionRecords[$index][$key."_bd"] = array();
-						}
-					}else{
-						$configuracionRecords[$index][$key."_bd"] = array();
-					}
-					break;
-				case "multitext":
-					$result = (@$value) ? json_decode(t($record, $key), true) : array();
-					$configuracionRecords[$index][$key."_bd"] = $result;
-					break;
-				case "textfield":
-					if (@$schema[$key]["tipoTags"]) {
-						$tags = array_filter(explode(",", $value));
-						$configuracionRecords[$index][$key."_bd"] = $tags;
-					}
-					break;
-				default:
-					break;
-			}
-		}
-		$configuracionRecords[$index]["breadcrumbField"] = @$schema["breadcrumbField"];
-		// Si es parentNum ponemos valores por defecto
-		if (@$configuracionRecords[$index]["breadcrumbField"] == "parentNum") {
-			$configuracionRecords[$index]["optionsTablename"] = $configuracionRecords[$index]["tableName"];
-			$configuracionRecords[$index]["optionsValueField"] = "num";
-		} else if (@$configuracionRecords[$index]["breadcrumbField"]) {
-			// Si no es parentNum, ponemos los que dicte el schema
-			$configuracionRecords[$index]["optionsTablename"] = @$schema[$schema["breadcrumbField"]]["optionsTablename"];
-			$configuracionRecords[$index]["optionsValueField"] =  @$schema[$schema["breadcrumbField"]]["optionsValueField"];
-		}
+function dame_registros($tabla, $where = "", $order = "", $limit = 1000, $depth = 0){
+	if ($order === "") $order = null;
+	if ($limit === "" || is_null($limit)) $limit = 1000;
 
-		// Para el campo principal (para la generación de enlaces y el breadcrumb)
-		if (@$record["name"]) {
-			$configuracionRecords[$index]["mainFieldBreadcrumb"] = t($record, "name");
-		}
-		else if (@$record["title"]) {
-			$configuracionRecords[$index]["mainFieldBreadcrumb"] = t($record, "title");
-		}
-		else if (@$record["titulo"]) {
-			$configuracionRecords[$index]["mainFieldBreadcrumb"] = t($record, "titulo");
-		}
-		else if (@$record["nombre"]) {
-			$configuracionRecords[$index]["mainFieldBreadcrumb"] = t($record, "nombre");
-		}
-		else {
-			foreach ($schema as $key => $value):
-				if (!is_array($value)) continue;
-			if (@$value["type"] == "textfield" && $key != "enlace") {
-				$configuracionRecords[$index]["mainFieldBreadcrumb"] = t($record, $key);
-				break;
-			}
-			endforeach;
-		}
-	}
-	
-	
-	if ($configuracionRecords) {
-		
-		return $configuracionRecords; 
-	}else {
-		return array();
-	}
+	$options = [
+		"ignoreSchema" => true
+	];
+	if ($depth) $options["relationsDepth"] = 0;
+
+	$records = CocoDB::get($tabla, $where, $order, $limit, $options);
+	return is_array($records) ? $records : [];
 }
 
 function dame_idiomas(){

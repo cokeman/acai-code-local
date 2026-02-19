@@ -1,6 +1,6 @@
 <?
 
-$otros_contenidos = dame_registros("otros_contenidos", "visible_en_el_menu=1", "siblingOrder DESC");
+$otros_contenidos = CocoDB::get("otros_contenidos", "visible_en_el_menu=1", "siblingOrder DESC", null, ["ignoreSchema" => true]);
 $config_footer 	= 	array(
 		                'pie_de_pagina'				=>	t($configuracionRecord,"pie_de_pagina"),
 		                'configuracionRecord'		=>	@$configuracionRecord,

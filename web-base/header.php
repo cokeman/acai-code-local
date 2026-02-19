@@ -6,7 +6,7 @@ require_once "funciones.php";
 if (!isset($current)) $current=0;
 
 if (HAY_TIENDA) {
-	$categorias = dame_registros("categorias_productos", "parentNum=0", "siblingOrder ASC");
+	$categorias = CocoDB::get("categorias_productos", "parentNum=0", "siblingOrder ASC", null, ["ignoreSchema" => true]);
 }
 
 $idiomas = dame_idiomas();
@@ -18,16 +18,16 @@ foreach ($idiomas as $idioma):
 	if ($idioma["valor"]=="/".@$_REQUEST["idioma"]) $idiomaSeleccionado=$idioma["idioma"];
 endforeach;
 
-$apartadoCesta = dame_registros("apartados", "controlador='cesta.php'");
+$apartadoCesta = CocoDB::get("apartados", "controlador='cesta.php'", null, 1, ["ignoreSchema" => true]);
 $apartadoCesta = @$apartadoCesta[0];
 
-$apartadoFavoritos = dame_registros("apartados", "controlador='favoritos.php'");
+$apartadoFavoritos = CocoDB::get("apartados", "controlador='favoritos.php'", null, 1, ["ignoreSchema" => true]);
 $apartadoFavoritos = @$apartadoFavoritos[0];
 
-$apartadoLogin = dame_registros("apartados", "controlador='login.php'");
+$apartadoLogin = CocoDB::get("apartados", "controlador='login.php'", null, 1, ["ignoreSchema" => true]);
 $apartadoLogin = @$apartadoLogin[0];
 
-$apartadoRegistro = dame_registros("apartados", "controlador='registro.php'");
+$apartadoRegistro = CocoDB::get("apartados", "controlador='registro.php'", null, 1, ["ignoreSchema" => true]);
 $apartadoRegistro = @$apartadoRegistro[0];
 
 $alternate = dame_alternates($_SERVER["REQUEST_URI"]);

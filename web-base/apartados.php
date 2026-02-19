@@ -2,7 +2,7 @@
 require_once ("sesion.php");
 require_once "funciones.php";
 
-$apartado = dame_registros("apartados", "num=".intval(@$_REQUEST["num"]), "num DESC", 1);
+$apartado = CocoDB::get("apartados", "num=".intval(@$_REQUEST["num"]), "num DESC", 1);
 $apartado = @$apartado[0]; // get first record
 $configuracionRecord["titulo_de_pagina"] = t($apartado,"name")." - ".$configuracionRecord["titulo_de_pagina"];
 
@@ -23,7 +23,7 @@ if (!@$apartado) {
 }
 include("header.php");
 
-$portada = dame_registros("portada","","",1);$portada = @$portada[0];
+$portada = CocoDB::get("portada","","",1);$portada = @$portada[0];
 
 $config_apartados 	= 	array(
 						'portada'			=>	@$portada,

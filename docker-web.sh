@@ -448,9 +448,6 @@ if $ACAI_MODE; then
     # Configs parcheadas (se generan mas abajo)
     WEB_VOLUMES+="
       - ./settings.dat.php:/var/www/html/cms/data/settings.dat.php
-      - ${WEB_BASE_DIR}/cms/data:/var/www/html/cmsAdmin/data
-      - ./settings.dat.php:/var/www/html/cmsAdmin/data/settings.dat.php
-      - ${WEB_BASE_DIR}/cms/lib/plugins:/var/www/html/cmsAdmin/lib/plugins
       - ./.htaccess:/var/www/html/.htaccess"
     # Caches escribibles (originales se copian desde /web-base-src al arrancar)
     WEB_VOLUMES+="
@@ -459,9 +456,7 @@ if $ACAI_MODE; then
       - acai_css_cache:/var/www/html/template/estandar/css/minified"
 else
     WEB_VOLUMES="      - ${PROJECT_DIR}:/var/www/html
-      - ./init.sh:/docker-entrypoint-init.d/init.sh
-      - ${PROJECT_DIR}/cms/data:/var/www/html/cmsAdmin/data
-      - ${PROJECT_DIR}/cms/lib/plugins:/var/www/html/cmsAdmin/lib/plugins"
+      - ./init.sh:/docker-entrypoint-init.d/init.sh"
 fi
 
 # Montar SQL si existe

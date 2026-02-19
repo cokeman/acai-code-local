@@ -42,7 +42,7 @@ from git_ops import (
 from watcher import (
     _watcher_log, _watcher_log_lock,
     _watcher_log_add, _queue_read, _process_queue,
-    start_module_watcher, mark_pulling, unmark_pulling,
+    start_module_watcher, mark_pulling, finish_pulling,
 )
 
 
@@ -1015,7 +1015,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 json.dump(marker_data, f, ensure_ascii=False, indent=2)
             steps.append("Directorio creado en {}".format(dest))
         except Exception as e:
-            unmark_pulling(str(dest))
+            finish_pulling(str(dest))
             self.send_json({"success": False, "error": "Error creando directorio: {}".format(e)})
             return
 
@@ -1030,13 +1030,13 @@ class Handler(http.server.BaseHTTPRequestHandler):
             }
             result = acai_web_request_zip(domain, ssl_enabled, payload, timeout=120)
             if result.get("error"):
-                unmark_pulling(str(dest))
+                finish_pulling(str(dest))
                 self.send_json({"success": False, "error": "getAcaiPackFiles: {}".format(result["error"])})
                 return
             zip_path = result["path"]
             steps.append("ZIP descargado")
         except Exception as e:
-            unmark_pulling(str(dest))
+            finish_pulling(str(dest))
             self.send_json({"success": False, "error": "Error descargando ZIP: {}".format(e)})
             return
 
@@ -1046,11 +1046,11 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 zf.extractall(str(dest))
             steps.append("ZIP extraido")
         except zipfile.BadZipFile:
-            unmark_pulling(str(dest))
+            finish_pulling(str(dest))
             self.send_json({"success": False, "error": "El servidor no devolvio un ZIP valido"})
             return
         except Exception as e:
-            unmark_pulling(str(dest))
+            finish_pulling(str(dest))
             self.send_json({"success": False, "error": "Error extrayendo ZIP: {}".format(e)})
             return
         finally:
@@ -1144,7 +1144,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 git_steps.append("git auto-init error: {}".format(e))
 
         # Resume watcher tracking for this project
-        unmark_pulling(str(dest))
+        finish_pulling(str(dest))
 
         self.send_json({
             "success": True,

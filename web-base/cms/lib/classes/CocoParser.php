@@ -222,7 +222,7 @@ class CocoParser {
                         $resultPlugin = addPlugins("post_codigos_en_linea",$form);
 
                         if (!@$options["amp"] && !@$options['sin_gracias']) {
-                            $apartadoGracias = dame_registros("otros_contenidos", "controlador='gracias.php'");
+                            $apartadoGracias = CocoDB::get("otros_contenidos", "controlador='gracias.php'", null, 1, ["ignoreSchema" => true]);
                             $apartadoGracias = @$apartadoGracias[0];
                             if (@$apartadoGracias) {
                                 echo '<script>window.location.href = "'.t($apartadoGracias, "enlace").'"</script>';
@@ -266,7 +266,7 @@ class CocoParser {
         header("Access-Control-Allow-Origin:" . str_replace('.', '-', $domain_url) .".cdn.ampproject.org");
         header("AMP-Access-Control-Allow-Source-Origin: " . $domain_url);
 
-        $apartadoGracias = dame_registros("otros_contenidos", "controlador='gracias.php'");
+        $apartadoGracias = CocoDB::get("otros_contenidos", "controlador='gracias.php'", null, 1, ["ignoreSchema" => true]);
         $apartadoGracias = @$apartadoGracias[0];
         if (@$apartadoGracias) {
             header("AMP-Redirect-To: " . protocol()."://".$_SERVER["HTTP_HOST"].t($apartadoGracias, "enlace"));

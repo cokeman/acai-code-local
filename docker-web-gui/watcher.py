@@ -14,22 +14,57 @@ from config import get_webs_dir
 
 
 # ---- Pull suppression ----
-# Project dirs being pulled from Acai — watcher ignores changes from these.
+# Two-phase mechanism to avoid processing files extracted during a pull:
+#
+# 1. mark_pulling(dir)  — called at pull START. While active, the watcher
+#    filters out changes from this directory (handles slow pulls that span
+#    multiple watcher cycles).
+#
+# 2. finish_pulling(dir) — called at pull END. Scans the project's current
+#    module file mtimes and injects them into _force_absorb. The watcher
+#    merges these into its own mtimes dict BEFORE computing changes, so the
+#    extracted files are "already known" and only genuine user edits (with a
+#    newer mtime) are detected.
 
 _pulling_dirs = set()
 _pulling_lock = threading.Lock()
 
+_force_absorb = {}   # {filepath: mtime} — merged into watcher mtimes
+_force_absorb_lock = threading.Lock()
+
 
 def mark_pulling(project_dir):
     """Mark a project as 'being pulled' so the watcher ignores its changes."""
+    # Use the same base path as the watcher (get_webs_dir / name) so that
+    # the startswith() filter in the watcher loop actually matches.
+    project_name = Path(project_dir).name
+    watcher_path = str(get_webs_dir() / project_name)
     with _pulling_lock:
-        _pulling_dirs.add(str(Path(project_dir).resolve()))
+        _pulling_dirs.add(watcher_path)
 
 
-def unmark_pulling(project_dir):
-    """Remove the pull marker so the watcher resumes tracking this project."""
+def finish_pulling(project_dir):
+    """End pull suppression and absorb current file state into the watcher.
+
+    Scans the project's module files and injects their mtimes so the watcher
+    already "knows" them. Only files modified AFTER this point will be
+    detected as changes.
+    """
+    # Use the same base path as the watcher (get_webs_dir / name) so that
+    # the file path keys match exactly.
+    project_name = Path(project_dir).name
+    watcher_path = str(get_webs_dir() / project_name)
+    # Scan current mtimes using the watcher-compatible path
+    current = _scan_modules_mtimes([watcher_path])
+    _watcher_log_add("info", "Pull done: absorbed {} module files for {}".format(
+        len(current), project_name))
+    # Inject into force_absorb BEFORE removing from pulling — this way if a
+    # watcher cycle runs between these two operations, the pulling filter
+    # still protects us, and the absorb is ready for the next cycle.
+    with _force_absorb_lock:
+        _force_absorb.update(current)
     with _pulling_lock:
-        _pulling_dirs.discard(str(Path(project_dir).resolve()))
+        _pulling_dirs.discard(watcher_path)
 
 
 # ---- Watcher log buffer ----
@@ -217,15 +252,6 @@ def _sync_module_to_local(mod_dir, web_url):
 
 def _on_module_changed(changed_files, running_projects):
     """Detect changed modules and sync them to their local Docker containers if running."""
-    # Skip files from projects being pulled (already compiled on server)
-    with _pulling_lock:
-        pulling = set(_pulling_dirs)
-    if pulling:
-        changed_files = [f for f in changed_files
-                         if not any(f.startswith(d) for d in pulling)]
-        if not changed_files:
-            return
-
     # Group changed files by module directory
     changed_modules = {}  # {mod_dir_str: mod_dir_path}
     for filepath in changed_files:
@@ -295,18 +321,50 @@ def start_module_watcher(interval=2, get_projects_fn=None):
                 running_projects = get_projects_fn() if get_projects_fn else []
             except Exception:
                 continue
-            new_mtimes = _scan_modules_mtimes(web_dirs)
-            if mtimes:
-                changed = [
-                    f for f in new_mtimes
-                    if new_mtimes.get(f) != mtimes.get(f)
-                ]
-                # Also detect new files
-                new_files = [f for f in new_mtimes if f not in mtimes]
-                all_changed = list(set(changed + new_files))
-                if all_changed:
-                    _on_module_changed(all_changed, running_projects)
-            mtimes = new_mtimes
+
+            try:
+                new_mtimes = _scan_modules_mtimes(web_dirs)
+
+                # Merge mtimes injected by finish_pulling(): set mtimes for
+                # absorbed files to their current value so the diff sees no
+                # change.  Both finish_pulling and the watcher use get_webs_dir()
+                # paths, so keys match directly.
+                with _force_absorb_lock:
+                    if _force_absorb:
+                        absorbed = dict(_force_absorb)
+                        _force_absorb.clear()
+                        mtimes.update(absorbed)
+                        _watcher_log_add("info",
+                            "Watcher absorbed {} files from pull".format(len(absorbed)))
+
+                if mtimes:
+                    changed = [
+                        f for f in new_mtimes
+                        if new_mtimes.get(f) != mtimes.get(f)
+                    ]
+                    # Also detect new files
+                    new_files = [f for f in new_mtimes if f not in mtimes]
+                    all_changed = list(set(changed + new_files))
+                    if all_changed:
+                        _watcher_log_add("info",
+                            "Detected {} changes (before pull filter)".format(len(all_changed)))
+                        # Filter out files from projects still being pulled
+                        with _pulling_lock:
+                            pulling = set(_pulling_dirs)
+                        if pulling:
+                            before = len(all_changed)
+                            all_changed = [f for f in all_changed
+                                           if not any(f.startswith(d) for d in pulling)]
+                            if before != len(all_changed):
+                                _watcher_log_add("info",
+                                    "Pull filter: {} -> {} (pulling: {})".format(
+                                        before, len(all_changed),
+                                        [Path(d).name for d in pulling]))
+                        if all_changed:
+                            _on_module_changed(all_changed, running_projects)
+                mtimes = new_mtimes
+            except Exception as e:
+                _watcher_log_add("error", "Watcher loop error: {}".format(e))
 
     t = threading.Thread(target=_watch_loop, daemon=True)
     t.start()
