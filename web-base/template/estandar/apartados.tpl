@@ -1,9 +1,6 @@
 
 <section id="contenido_principal">
 	<div class="container mx-auto">
-		<div class="h-4"></div>
-		<? muestra_breadcrumb($apartado);?>
-		<div class="h-4"></div>
 		<h1 class="titular"><?=@$apartado["titulo_alternativo"] ? t($apartado, "titulo_alternativo") : t($apartado, "name");?></h1>
 		<div class="h-2"></div>
 		<div class="text-gray-600 text-xl">
