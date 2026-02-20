@@ -316,6 +316,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self.handle_server_git_pull(body)
         elif path == "/api/local-webs/migrate":
             self.handle_local_webs_migrate(body)
+        elif path == "/api/pull-database":
+            self.handle_pull_database(body)
         elif path.startswith("/local/"):
             self.handle_local_proxy("POST")
         else:
@@ -1010,6 +1012,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 "token": token,
                 "tokenHash": token_hash,
                 "timestamp": time.time(),
+                "mysql_host": body.get("db_host", ""),
+                "mysql_user": body.get("db_user", ""),
+                "mysql_db": body.get("db_name", ""),
             }
             with open(str(acai_marker), "w", encoding="utf-8") as f:
                 json.dump(marker_data, f, ensure_ascii=False, indent=2)
@@ -1164,6 +1169,184 @@ class Handler(http.server.BaseHTTPRequestHandler):
             "uploads_count": uploads_count,
             "has_db": has_db,
             "steps": steps + git_steps,
+            "errors": errors,
+        })
+
+    # ---- Pull Database ----
+
+    def handle_pull_database(self, body):
+        """POST /api/pull-database — dump remote DB and import into local Docker."""
+        project_dir = body.get("path", "")
+        if not project_dir:
+            self.send_error_json("path is required")
+            return
+
+        path = sanitize_path(project_dir)
+        if not path or not Path(path).is_dir():
+            self.send_error_json("Invalid project directory")
+            return
+
+        dest = Path(path)
+        steps = []
+        errors = []
+
+        # 1. Read remote DB credentials from .acai
+        acai_file = dest / ".acai"
+        if not acai_file.is_file():
+            self.send_error_json("No se encontro .acai en el proyecto")
+            return
+
+        try:
+            with open(str(acai_file), "r", encoding="utf-8") as f:
+                acai_data = json.load(f)
+        except Exception as e:
+            self.send_error_json("Error leyendo .acai: {}".format(e))
+            return
+
+        db_host = acai_data.get("mysql_host", "")
+        db_user = acai_data.get("mysql_user", "")
+        db_name = acai_data.get("mysql_db", "")
+        db_password = keychain_get("mysql") or ""
+
+        if not all([db_host, db_user, db_name, db_password]):
+            missing = []
+            if not db_host:
+                missing.append("mysql_host")
+            if not db_user:
+                missing.append("mysql_user")
+            if not db_name:
+                missing.append("mysql_db")
+            if not db_password:
+                missing.append("mysql password (keychain)")
+            self.send_error_json("Faltan credenciales BD remota: {}".format(", ".join(missing)))
+            return
+
+        steps.append("Credenciales BD remota leidas")
+
+        # 2. Verify local Docker DB container is running
+        proj_name = dest.name.lower()
+        proj_name = re.sub(r'[^a-z0-9_-]', '_', proj_name)
+        db_container = "dw-{}-db".format(proj_name)
+
+        rc_inspect, _, _ = run_cmd([
+            "docker", "inspect", "--format", "{{.State.Running}}", db_container
+        ])
+        if rc_inspect != 0:
+            self.send_error_json("Contenedor DB '{}' no encontrado. Levanta el proyecto primero.".format(db_container))
+            return
+
+        steps.append("Contenedor DB '{}' verificado".format(db_container))
+
+        # 3. Read local DB credentials from .docker/.env
+        env_file = dest / ".docker" / ".env"
+        local_db = ""
+        local_root_pass = ""
+        if env_file.is_file():
+            try:
+                for line in env_file.read_text(encoding="utf-8").splitlines():
+                    if line.startswith("DB_DATABASE="):
+                        local_db = line.split("=", 1)[1]
+                    elif line.startswith("DB_ROOT_PASSWORD="):
+                        local_root_pass = line.split("=", 1)[1]
+            except Exception:
+                pass
+
+        if not local_db or not local_root_pass:
+            self.send_error_json("No se pudieron leer credenciales locales de .docker/.env")
+            return
+
+        # 4. Mysqldump from remote
+        try:
+            dump_file = dest / "database.sql"
+            rc_which, _, _ = run_cmd(["which", "mysqldump"])
+            if rc_which == 0:
+                mysqldump_cmd = [
+                    "mysqldump",
+                    "-h", db_host,
+                    "-u", db_user,
+                    "-p{}".format(db_password),
+                    "--single-transaction",
+                    "--routines",
+                    "--triggers",
+                    db_name,
+                ]
+            else:
+                mysqldump_cmd = [
+                    "docker", "run", "--rm",
+                    "mariadb:10.11",
+                    "mysqldump",
+                    "-h", db_host,
+                    "-u", db_user,
+                    "-p{}".format(db_password),
+                    "--single-transaction",
+                    "--routines",
+                    "--triggers",
+                    db_name,
+                ]
+
+            steps.append("Descargando base de datos remota...")
+            rc, out, err = run_cmd(mysqldump_cmd, timeout=120)
+            if rc != 0 or not out.strip():
+                self.send_json({
+                    "success": False,
+                    "error": "mysqldump fallo: {}".format(err.strip()[:300] if err else "sin output"),
+                    "steps": steps,
+                })
+                return
+
+            # 5. Clean DEFINERs
+            clean_dump = re.sub(
+                r'/\*![0-9]+ DEFINER=`[^`]*`@`[^`]*`\*/',
+                '',
+                out,
+            )
+
+            # 6. Save as database.sql
+            with open(str(dump_file), "w", encoding="utf-8") as f:
+                f.write(clean_dump)
+            steps.append("database.sql guardado ({:.1f} MB)".format(len(clean_dump) / 1024 / 1024))
+
+        except Exception as e:
+            self.send_json({
+                "success": False,
+                "error": "Error en mysqldump: {}".format(e),
+                "steps": steps,
+            })
+            return
+
+        # 7. Import into local Docker DB
+        try:
+            steps.append("Importando en contenedor local...")
+            with open(str(dump_file), "r", encoding="utf-8") as sql_file:
+                result = subprocess.run(
+                    ["docker", "exec", "-i", db_container,
+                     "mysql", "-uroot", "-p{}".format(local_root_pass), local_db],
+                    stdin=sql_file,
+                    capture_output=True,
+                    text=True,
+                    timeout=300,
+                )
+            if result.returncode != 0:
+                errors.append("Import warning: {}".format(result.stderr.strip()[:300] if result.stderr else ""))
+            steps.append("Base de datos importada en Docker local")
+        except subprocess.TimeoutExpired:
+            self.send_json({
+                "success": False,
+                "error": "Timeout importando BD (>5min)",
+                "steps": steps,
+            })
+            return
+        except Exception as e:
+            self.send_json({
+                "success": False,
+                "error": "Error importando BD: {}".format(e),
+                "steps": steps,
+            })
+            return
+
+        self.send_json({
+            "success": True,
+            "steps": steps,
             "errors": errors,
         })
 
