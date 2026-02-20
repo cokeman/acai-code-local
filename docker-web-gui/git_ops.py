@@ -48,6 +48,7 @@ def _gitea_api(method, path, token=None, data=None):
 
 ACAI_GITIGNORE = """\
 /*
+!.gitignore
 !hooks/
 !template/
 template/*
@@ -56,9 +57,13 @@ template/estandar/*
 !template/estandar/modulos/
 !cms/
 cms/*
+!cms/data/
+cms/data/*
+!cms/data/schema/
 !cms/lib/
 cms/lib/*
 !cms/lib/plugins/
+cms/lib/plugins/cms_api/
 cms/uploads/
 **/minified/
 .docker/
@@ -126,8 +131,12 @@ def _git_connect_repo(dest, domain, config, create_if_missing=False):
         steps.append("Repo {}/{} no existe en Gitea (usa 'Iniciar Git' para crearlo)".format(org, repo_name))
         return steps
 
-    if not repo_exists and create_if_missing:
-        # Create repo
+    if create_if_missing:
+        # Delete existing repo first to start clean
+        if repo_exists:
+            _gitea_api("DELETE", "/repos/{}/{}".format(org, repo_name))
+            steps.append("Repo anterior eliminado")
+        # Create fresh repo
         repo_result = _gitea_api("POST", "/orgs/{}/repos".format(org), data={
             "name": repo_name,
             "private": True,
@@ -143,11 +152,18 @@ def _git_connect_repo(dest, domain, config, create_if_missing=False):
     else:
         steps.append("Repo existente: {}/{}".format(org, repo_name))
 
-    # 2. gitignore
+    # 2. Remove stale .git if creating a new repo
+    git_dir = Path(dest) / ".git"
+    if create_if_missing and git_dir.is_dir():
+        import shutil
+        shutil.rmtree(str(git_dir))
+        steps.append(".git anterior eliminado")
+
+    # 3. gitignore
     _write_gitignore(dest)
     steps.append(".gitignore escrito")
 
-    # 3. git init
+    # 4. git init
     rc, _, err = run_cmd(["git", "-C", dest, "init"], timeout=15)
     if rc != 0:
         steps.append("git init error: {}".format(err[:100]))

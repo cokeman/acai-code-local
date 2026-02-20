@@ -1036,8 +1036,6 @@ class CocoDB
             self::error(["info" => $sql]);
         }
 
-        $num_rows = mysql_num_rows(mysql_query($query_without_limit));
-
         $hashSql = self::cacheGenerateHash(md5($sql . json_encode($options)));
 
         if (!self::$noCacheTABLES || (self::$noCacheTABLES && !in_array($TABLE_PREFIX . str_replace($TABLE_PREFIX, "", $table), self::$noCacheTABLES))) {
@@ -1050,6 +1048,30 @@ class CocoDB
                 if (!empty(self::$getCaches[$hashSql])) {
                     return json_decode(self::$getCaches[$hashSql], true);
                 }
+            }
+        }
+
+        $num_rows = null;
+        if (@$options["withMetas"]) {
+            $countSql = "SELECT COUNT(*) AS totalRecords FROM " . $from;
+            $countSql .= $where ? " WHERE " . $where : "";
+
+            // Cuando hay GROUP BY, totalRecords debe contar grupos y no filas crudas.
+            if (@$options["groupBy"]) {
+                $countSql = "SELECT COUNT(*) AS totalRecords FROM (SELECT 1 FROM " . $from;
+                $countSql .= $where ? " WHERE " . $where : "";
+                $countSql .= " GROUP BY " . $options["groupBy"] . ") __count_groups";
+            }
+
+            $countResult = @mysql_query($countSql);
+            if ($countResult) {
+                $countRow = mysql_fetch_assoc($countResult);
+                if (isset($countRow["totalRecords"])) $num_rows = intval($countRow["totalRecords"]);
+            }
+
+            // Fallback para no alterar comportamiento si el COUNT optimizado falla.
+            if (is_null($num_rows)) {
+                $num_rows = mysql_num_rows(mysql_query($query_without_limit));
             }
         }
 

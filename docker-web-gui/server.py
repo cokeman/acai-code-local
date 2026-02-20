@@ -1043,11 +1043,20 @@ class Handler(http.server.BaseHTTPRequestHandler):
         # Step 3: Extract ZIP to destination
         try:
             with zipfile.ZipFile(zip_path, "r") as zf:
-                zf.extractall(str(dest))
+                exclude_prefixes = ("cms/uploads/webp/",)
+                members = [m for m in zf.namelist() if not any(m.startswith(p) for p in exclude_prefixes)]
+                zf.extractall(str(dest), members=members)
             steps.append("ZIP extraido")
         except zipfile.BadZipFile:
             finish_pulling(str(dest))
-            self.send_json({"success": False, "error": "El servidor no devolvio un ZIP valido"})
+            # Log first bytes to diagnose what the server returned
+            try:
+                with open(zip_path, "rb") as f:
+                    preview = f.read(500)
+                preview_str = preview.decode("utf-8", errors="replace")
+            except Exception:
+                preview_str = "(no se pudo leer)"
+            self.send_json({"success": False, "error": "El servidor no devolvio un ZIP valido. Respuesta: {}".format(preview_str[:300])})
             return
         except Exception as e:
             finish_pulling(str(dest))
@@ -1207,7 +1216,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
         })
 
     def handle_git_init(self, body):
-        """POST /api/git/init — connect a web folder to its Gitea repo."""
+        """POST /api/git/init — setup git on server first, then connect local."""
         path = body.get("path", "")
         domain = body.get("domain", "")
         if not path or not domain:
@@ -1218,14 +1227,39 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self.send_error_json("Invalid path")
             return
         config = load_config()
-        if not config.get("gitea_url") or not keychain_get("gitea"):
+        gitea_password = keychain_get("gitea")
+        if not config.get("gitea_url") or not gitea_password:
             self.send_error_json("Gitea no configurado. Ve a Ajustes > Git Sync.")
             return
+
+        all_steps = []
+
+        # 1. Setup git on server (giteaSetup: deletes repo, creates fresh, pushes)
         try:
-            steps = _git_connect_repo(safe, domain, config, create_if_missing=True)
-            self.send_json({"success": True, "steps": steps})
+            acai_marker = Path(safe) / ".acai"
+            if acai_marker.is_file():
+                server_body = dict(body)
+                server_body["gitea_url"] = config.get("gitea_url", "")
+                server_body["gitea_username"] = config.get("gitea_username", "")
+                server_body["gitea_password"] = gitea_password
+                server_body["gitea_org"] = config.get("gitea_org", "acai")
+                result = self._server_git_proxy(server_body, "giteaSetup")
+                if result and result.get("steps"):
+                    all_steps.append("--- Servidor ---")
+                    all_steps.extend(result["steps"])
+                elif result and result.get("error"):
+                    all_steps.append("Error servidor: {}".format(result["error"]))
         except Exception as e:
-            self.send_json({"success": False, "error": str(e)})
+            all_steps.append("Error servidor: {}".format(e))
+
+        # 2. Connect local repo (fetch from server's push)
+        try:
+            local_steps = _git_connect_repo(safe, domain, config, create_if_missing=True)
+            all_steps.append("--- Local ---")
+            all_steps.extend(local_steps)
+            self.send_json({"success": True, "steps": all_steps})
+        except Exception as e:
+            self.send_json({"success": False, "error": str(e), "steps": all_steps})
 
     def _ensure_git_remote(self, safe):
         """Update origin remote URL from current config (handles password changes)."""
@@ -1393,25 +1427,25 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self.send_error_json("Gitea no configurado. Ve a Ajustes > Git Sync.")
             return
 
-        # 1. Create repo in Gitea if it doesn't exist
+        # 1. Delete + recreate repo in Gitea (clean start)
         org = config.get("gitea_org", "acai")
         repo_name = "sync-{}".format(domain)
-        check = _gitea_api("GET", "/repos/{}/{}".format(org, repo_name))
         steps = []
-        if not check.get("id"):
-            repo_result = _gitea_api("POST", "/orgs/{}/repos".format(org), data={
-                "name": repo_name,
-                "private": True,
-                "auto_init": False,
-            })
-            if repo_result.get("id"):
-                steps.append("Repo creado: {}/{}".format(org, repo_name))
-            else:
-                err_msg = repo_result.get("error") or repo_result.get("message", "unknown")
-                self.send_json({"success": False, "error": "Error creando repo: {}".format(err_msg)})
-                return
+        check = _gitea_api("GET", "/repos/{}/{}".format(org, repo_name))
+        if check.get("id"):
+            _gitea_api("DELETE", "/repos/{}/{}".format(org, repo_name))
+            steps.append("Repo anterior eliminado")
+        repo_result = _gitea_api("POST", "/orgs/{}/repos".format(org), data={
+            "name": repo_name,
+            "private": True,
+            "auto_init": False,
+        })
+        if repo_result.get("id"):
+            steps.append("Repo creado: {}/{}".format(org, repo_name))
         else:
-            steps.append("Repo existente: {}/{}".format(org, repo_name))
+            err_msg = repo_result.get("error") or repo_result.get("message", "unknown")
+            self.send_json({"success": False, "error": "Error creando repo: {}".format(err_msg)})
+            return
 
         # 2. Inject Gitea creds and call server
         body["gitea_url"] = config.get("gitea_url", "")
@@ -1424,9 +1458,27 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return
         if result.get("error"):
             self.send_json({"success": False, "error": result["error"], "steps": steps})
-        else:
-            server_steps = result.get("steps", [])
-            self.send_json({"success": True, "steps": steps + server_steps})
+            return
+        server_steps = result.get("steps", [])
+        steps += server_steps
+
+        # 3. Connect local repo to the Gitea repo (don't recreate — server already pushed)
+        webs_dir = Path(load_config().get("webs_dir", "~/webs")).expanduser()
+        local_path = webs_dir / domain
+        if local_path.is_dir():
+            # Remove stale .git so we fetch fresh from server's push
+            git_dir = local_path / ".git"
+            if git_dir.is_dir():
+                import shutil
+                shutil.rmtree(str(git_dir))
+                steps.append("Local .git eliminado")
+            try:
+                local_steps = _git_connect_repo(str(local_path), domain, config, create_if_missing=False)
+                steps += ["--- Local ---"] + local_steps
+            except Exception as e:
+                steps.append("Error local: {}".format(e))
+
+        self.send_json({"success": True, "steps": steps})
 
     def handle_server_git_status(self, body):
         """POST /api/server-git/status — get git status from server."""

@@ -442,14 +442,16 @@ if $ACAI_MODE; then
         err "web-base no encontrada en $WEB_BASE_DIR"
         exit 1
     fi
-    mkdir -p "$PROJECT_DIR/template/estandar/modulos" "$PROJECT_DIR/hooks" "$PROJECT_DIR/cms/uploads" "$PROJECT_DIR/cms/lib/plugins"
+    mkdir -p "$PROJECT_DIR/template/estandar/modulos" "$PROJECT_DIR/template/estandar/images" "$PROJECT_DIR/hooks" "$PROJECT_DIR/cms/uploads" "$PROJECT_DIR/cms/lib/plugins" "$PROJECT_DIR/cms/data/schema"
     WEB_VOLUMES="      - ${WEB_BASE_DIR}:/var/www/html
       - ${WEB_BASE_DIR}:/web-base-src:ro
       - ./init.sh:/docker-entrypoint-init.d/init.sh
       - ${PROJECT_DIR}/template/estandar/modulos:/var/www/html/template/estandar/modulos
+      - ${PROJECT_DIR}/template/estandar/images:/var/www/html/template/estandar/images
       - ${PROJECT_DIR}/hooks:/var/www/html/hooks
       - ${PROJECT_DIR}/cms/uploads:/var/www/html/cms/uploads
-      - ${PROJECT_DIR}/cms/lib/plugins:/var/www/html/cms/lib/plugins"
+      - ${PROJECT_DIR}/cms/lib/plugins:/var/www/html/cms/lib/plugins
+      - ${PROJECT_DIR}/cms/data/schema:/var/www/html/cms/data/schema"
     # Configs parcheadas (se generan mas abajo)
     WEB_VOLUMES+="
       - ./settings.dat.php:/var/www/html/cms/data/settings.dat.php

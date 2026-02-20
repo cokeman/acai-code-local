@@ -25,6 +25,8 @@
 	/* CACHE HANDLER */
 	/*****************/
 
+//	define("USE_INFORMATION_SCHEMA_CACHE", true);
+
 	// Cache local que cachea las consultas en cada petición cuando se repitan (sin Redis)
 
 //	CocoDB::$noCacheURIS = ["\/mi(s)?-(.*)(\/)(.*)","\/hooks\/(.*)?","\/login\/(.*)?"];
@@ -34,7 +36,7 @@
 //	CocoDB::fullCache(3);
 //
 //	// Activamos el Cache local que cache las consultas en cada carga cuando se repitan
-//	CocoDB::localCache();
+	CocoDB::localCache();
 //
 //	CocoDB::$force_redis_module = @CocoDB::bloquedCacheByURL($_SERVER["REQUEST_URI"]) ? false : true;
 //	CocoDB::$force_redis_html = @CocoDB::bloquedCacheByURL($_SERVER["REQUEST_URI"]) ? false : true;

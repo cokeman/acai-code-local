@@ -1435,6 +1435,7 @@ input:read-only { opacity: 0.5; cursor: default; }
           <button class="btn btn-ghost btn-sm" onclick="acaiLogout()">Desconectar</button>
         </div>
         <div style="margin-bottom:10px; font-size:13px; color:var(--text2);">Selecciona una web:</div>
+        <input type="text" id="acaiDomainSearch" placeholder="Buscar dominio..." oninput="renderDomains()" style="width:100%;margin-bottom:10px;">
         <div class="acai-domains-grid" id="acaiDomainsList"></div>
         <div id="acaiDomainStatus"></div>
       </div>
@@ -1626,7 +1627,7 @@ function renderProjectCard(p) {
       <div class="info-row-icon web"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 12m-9 0a9 9 0 1 0 18 0a9 9 0 1 0 -18 0"/><path d="M12 12m-3 0a3 3 0 1 0 6 0a3 3 0 1 0 -6 0"/><path d="M12 9h8.4"/><path d="M14.598 13.5l-4.2 7.275"/><path d="M9.402 13.5l-4.2 -7.275"/></svg></div>
       <div class="info-row-content">
         <div class="info-row-label">Web local</div>
-        <div class="info-row-value"><a href="${escapeAttr(p.https_url)}" target="_blank">${escapeHtml(p.https_url.replace('https://', ''))}</a></div>
+        <div class="info-row-value"><a href="${escapeAttr(p.https_url)}?pruebas=1" target="_blank">${escapeHtml(p.https_url.replace('https://', ''))}</a></div>
         ${p.project_dir ? `<div class="info-row-sub">${escapeHtml(p.project_dir)}</div>` : ''}
       </div>
     </div>` : '';
@@ -1636,7 +1637,7 @@ function renderProjectCard(p) {
       <div class="info-row-icon tunnel"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 12m-9 0a9 9 0 1 0 18 0a9 9 0 1 0 -18 0"/><path d="M12 12m-3 0a3 3 0 1 0 6 0a3 3 0 1 0 -6 0"/><path d="M12 9h8.4"/><path d="M14.598 13.5l-4.2 7.275"/><path d="M9.402 13.5l-4.2 -7.275"/></svg></div>
       <div class="info-row-content">
         <div class="info-row-label">Tunnel público</div>
-        <div class="info-row-value"><a href="https://${escapeAttr(p.tunnel_url)}" target="_blank">${escapeHtml(p.tunnel_url)}</a></div>
+        <div class="info-row-value"><a href="https://${escapeAttr(p.tunnel_url)}?pruebas=1" target="_blank">${escapeHtml(p.tunnel_url)}</a></div>
       </div>
       <div class="info-row-actions">
         <button class="btn btn-secondary btn-sm" onclick="navigator.clipboard.writeText('https://${escapeAttr(p.tunnel_url)}')">Copiar</button>
@@ -1685,7 +1686,7 @@ function renderProjectCard(p) {
       </div>
       ${hasInfoRows ? `<div class="info-rows">${webRow}${tunnelRow}${dbRow}</div>` : ''}
       <div class="project-footer">
-        ${p.tunnel_url ? `<button class="btn btn-primary btn-sm btn-icon" onclick="window.open('https://${escapeAttr(p.tunnel_url)}', '_blank')"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 12m-9 0a9 9 0 1 0 18 0a9 9 0 1 0 -18 0"/><path d="M12 12m-3 0a3 3 0 1 0 6 0a3 3 0 1 0 -6 0"/><path d="M12 9h8.4"/><path d="M14.598 13.5l-4.2 7.275"/><path d="M9.402 13.5l-4.2 -7.275"/></svg> Abrir</button>` : ''}
+        ${p.tunnel_url ? `<button class="btn btn-primary btn-sm btn-icon" onclick="window.open('https://${escapeAttr(p.tunnel_url)}?pruebas=1', '_blank')"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 12m-9 0a9 9 0 1 0 18 0a9 9 0 1 0 -18 0"/><path d="M12 12m-3 0a3 3 0 1 0 6 0a3 3 0 1 0 -6 0"/><path d="M12 9h8.4"/><path d="M14.598 13.5l-4.2 7.275"/><path d="M9.402 13.5l-4.2 -7.275"/></svg> Abrir</button>` : ''}
         ${p.project_dir ? `<button class="btn btn-secondary btn-sm btn-icon" onclick="openInVSCode('${escapeAttr(p.project_dir)}')"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M16 3v18l4 -2.5v-13z"/><path d="M9.165 13.903l-4.165 3.597l-2 -1l4.333 -4.5m1.735 -1.802l6.932 -7.198v5l-4.795 4.141"/><path d="M16 16.5l-11 -10l-2 1l13 13.5"/></svg> VSCode</button>` : ''}
         ${p.tunnel_url && p.acai_domain ? `<button class="btn btn-secondary btn-sm btn-icon" onclick="openCmsAdmin('${p.acai_token || ''}', '${p.acai_domain}', '${p.tunnel_url}', '${p.db_user || ''}', '${p.db_pass || ''}', '${p.db_name || ''}', '${p.bore_db_url || ''}')"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 5m0 2a2 2 0 0 1 2 -2h14a2 2 0 0 1 2 2v10a2 2 0 0 1 -2 2h-14a2 2 0 0 1 -2 -2z"/><path d="M7 15v-4a2 2 0 0 1 4 0v4"/><path d="M7 13l4 0"/><path d="M17 9v6h-1.5a1.5 1.5 0 1 1 1.5 -1.5"/></svg> CMS</button>` : ''}
       </div>
@@ -2057,13 +2058,20 @@ async function acaiLogin() {
 
 function renderDomains() {
   const el = document.getElementById('acaiDomainsList');
+  const search = (document.getElementById('acaiDomainSearch').value || '').toLowerCase();
 
-  if (acaiSession.domains.length === 0) {
-    el.innerHTML = '<div class="empty-state">No se encontraron webs</div>';
+  const filtered = acaiSession.domains.filter(d =>
+    !search || d.domain.toLowerCase().includes(search)
+  );
+
+  if (filtered.length === 0) {
+    el.innerHTML = '<div class="empty-state">' +
+      (acaiSession.domains.length === 0 ? 'No se encontraron webs' : 'Sin resultados para "' + escapeHtml(search) + '"') +
+      '</div>';
     return;
   }
 
-  el.innerHTML = acaiSession.domains.map(d => {
+  el.innerHTML = filtered.map(d => {
     const isSelected = acaiSession.domain && acaiSession.domain.num === d.num;
     const multiTag = d.multiSite === '1' ? ' <span class="badge-acai">Multi-site</span>' : '';
     return `
@@ -2272,7 +2280,7 @@ async function checkServerSyncStatus() {
         else if (localBehind > 0) fromLabel = '&#8595; Traer de produccion (' + localBehind + ')';
         area.innerHTML =
           `<button class="btn btn-sm" style="background:var(--accent);color:#fff;${canPull ? '' : 'opacity:0.5;'}" ${canPull ? '' : 'disabled'} onclick="syncFromProduction('${escapeAttr(domain)}', '${escapeAttr(path)}', this)">${fromLabel}</button>` +
-          `<button class="btn btn-sm" style="background:#e67e22;color:#fff;${canPush ? '' : 'opacity:0.5;'}" ${canPush ? '' : 'disabled'} onclick="syncToProduction('${escapeAttr(domain)}', '${escapeAttr(path)}', this)">&#8593; Enviar a produccion</button>`;
+          `<button class="btn btn-sm" style="margin-left:0.5rem;background:#e67e22;color:#fff;${canPush ? '' : 'opacity:0.5;'}" ${canPush ? '' : 'disabled'} onclick="syncToProduction('${escapeAttr(domain)}', '${escapeAttr(path)}', this)">&#8593; Enviar a produccion</button>`;
       } else if (data && !data.error && !data.has_remote) {
         area.innerHTML =
           `<button class="btn btn-primary btn-sm" onclick="serverGitSetup('${escapeAttr(domain)}', this)">Conectar servidor a Gitea</button>`;
@@ -2343,15 +2351,14 @@ function renderLocalWebCard(w) {
   if (!(w.has_git && w.git_remote_exists) && w.acai && hasGiteaConfig && !gitConnected) {
     gitButtons = `<button class="btn btn-secondary btn-sm" onclick="gitInit('${escapeAttr(w.path)}', '${escapeAttr(w.name)}', this)">Iniciar Git</button>`;
   }
-  // Hidden: Push/Pull local and Servidor buttons (replaced by sync buttons above)
-  // if (w.has_git && w.git_remote_exists) {
-  //   gitButtons += `<button class="btn btn-secondary btn-sm" onclick="gitPush('${escapeAttr(w.path)}', this)">Push</button>
-  //     <button class="btn btn-secondary btn-sm" onclick="gitPull('${escapeAttr(w.path)}', this)">Pull</button>`;
-  // }
+  if (w.has_git && w.git_remote_exists) {
+    gitButtons += `<button class="btn btn-secondary btn-sm" onclick="gitPush('${escapeAttr(w.path)}', this)">Push</button>
+      <button class="btn btn-secondary btn-sm" onclick="gitPull('${escapeAttr(w.path)}', this)">Pull</button>`;
+  }
   let serverGitButtons = '';
-  // if (w.acai && hasGiteaConfig) {
-  //   serverGitButtons = `<button class="btn btn-secondary btn-sm" onclick="serverGitStatus('${escapeAttr(w.name)}', this)" title="Estado git del servidor">&#9881; Servidor</button>`;
-  // }
+  if (w.acai && hasGiteaConfig) {
+    serverGitButtons = `<button class="btn btn-secondary btn-sm" onclick="serverGitStatus('${escapeAttr(w.name)}', this)" title="Estado git del servidor">&#9881; Servidor</button>`;
+  }
 
   // Sync area (simplified flow: production <-> local)
   let syncButtons = '';
