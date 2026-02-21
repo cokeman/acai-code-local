@@ -4,6 +4,7 @@ import * as path from 'path';
 import * as https from 'https';
 import { ProjectConfig } from './configReader';
 import { parseHtml } from './htmlParser';
+import { log } from './extension';
 
 function readFileOrEmpty(filePath: string): string {
   try {
@@ -24,6 +25,8 @@ function readJsonOrNull(filePath: string): any | null {
 function sendToApi(url: string, body: string, token: string, moduleId: string): void {
   const parsed = new URL(url);
 
+  log.info(`POST ${parsed.hostname}${parsed.pathname} (${Buffer.byteLength(body)} bytes)`);
+
   const options: https.RequestOptions = {
     hostname: parsed.hostname,
     port: 443,
@@ -33,6 +36,7 @@ function sendToApi(url: string, body: string, token: string, moduleId: string): 
       'Content-Type': 'application/json',
       'X-Acai-Token': token,
       'Content-Length': Buffer.byteLength(body),
+      'User-Agent': 'AcaiVSCode/0.1.0',
     },
   };
 
@@ -40,11 +44,17 @@ function sendToApi(url: string, body: string, token: string, moduleId: string): 
     let data = '';
     res.on('data', (chunk: Buffer) => { data += chunk.toString(); });
     res.on('end', () => {
+      log.info(`Response: HTTP ${res.statusCode}`);
+      log.info(`Body: ${data.substring(0, 1000)}`);
+
       if (res.statusCode && res.statusCode >= 200 && res.statusCode < 300) {
         let hasError = false;
         try {
-          const parsed = JSON.parse(data);
-          if (parsed.error) { hasError = true; }
+          const resp = JSON.parse(data);
+          if (resp.error) {
+            hasError = true;
+            log.error(`API error: ${resp.error}`);
+          }
         } catch { /* not JSON, treat as success */ }
 
         if (hasError) {
@@ -53,6 +63,7 @@ function sendToApi(url: string, body: string, token: string, moduleId: string): 
           vscode.window.setStatusBarMessage(`$(check) Acai: ${moduleId} compilado`, 3000);
         }
       } else {
+        log.error(`HTTP error: ${res.statusCode} — ${data.substring(0, 500)}`);
         vscode.window.showWarningMessage(
           `Acai: Error compilando ${moduleId} (HTTP ${res.statusCode})`
         );
@@ -61,6 +72,7 @@ function sendToApi(url: string, body: string, token: string, moduleId: string): 
   });
 
   req.on('error', (err: Error) => {
+    log.error(`Network error: ${err.message}`);
     vscode.window.showErrorMessage(`Acai: Error de red — ${err.message}`);
   });
 
@@ -72,28 +84,36 @@ export async function compileModule(config: ProjectConfig, filePath: string): Pr
   const moduleDir = path.dirname(filePath);
   const moduleId = path.basename(moduleDir);
 
+  log.info(`── Compilando: ${moduleId} ──`);
+
   const html = readFileOrEmpty(path.join(moduleDir, 'index-base.tpl'));
   const style = readFileOrEmpty(path.join(moduleDir, 'style.css'));
   const javascript = readFileOrEmpty(path.join(moduleDir, 'script.js'));
   const hook = readFileOrEmpty(path.join(moduleDir, 'hook.php'));
   const builderJson = readJsonOrNull(path.join(moduleDir, 'builder.json'));
 
+  log.info(`Archivos: html=${html.length}c style=${style.length}c js=${javascript.length}c hook=${hook.length}c builder.json=${builderJson ? 'sí' : 'no'}`);
+
   // Parsear HTML base → Twig (htmlParsed) + vars editables
-  // Misma lógica que remoteParser.js / save.js de acai-code
   let htmlParsed = html;
   let vars: any = {};
 
   try {
+    log.info('Parseando HTML → Twig...');
     const previousSchema = builderJson?.vars || {};
     const parseResult = await parseHtml(html, previousSchema);
     htmlParsed = parseResult.htmlParsed;
     vars = parseResult.vars;
+    log.info(`Parse OK — htmlParsed=${htmlParsed.length}c vars=${Object.keys(vars).length} campos`);
   } catch (err: any) {
-    vscode.window.showWarningMessage(`Acai: Error parseando HTML, enviando sin parsear — ${err.message}`);
+    log.error(`Parse error: ${err.message}\n${err.stack}`);
+    vscode.window.showWarningMessage(`Acai: Error parseando HTML — ${err.message}`);
   }
 
   const { acai, docker, tunnel } = config;
   const tunnelUrl = `${tunnel.tunnelHost}:${tunnel.tunnelPort}`;
+
+  log.info(`Config: domain=${acai.domain} tunnel=${tunnelUrl} db=${docker.dbDatabase}`);
 
   const params = new URLSearchParams({
     menu: 'apartados',
@@ -110,7 +130,6 @@ export async function compileModule(config: ProjectConfig, filePath: string): Pr
 
   const url = `https://acai.cms.cocosolution.com/admin.php?${params.toString()}`;
 
-  // Construir moduleData — misma estructura que save.js de acai-code
   const moduleData: any = {
     id: moduleId,
     html,
@@ -129,5 +148,6 @@ export async function compileModule(config: ProjectConfig, filePath: string): Pr
     MJMLModule: builderJson?.MJMLModule || false,
   };
 
+  log.info('Enviando al CMS...');
   sendToApi(url, JSON.stringify(moduleData), acai.token, moduleId);
 }

@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
+import { getProjectStatus } from './dockerCheck';
 
 // ── Types ──
 
@@ -14,7 +15,8 @@ type NodeKind =
   | 'category'
   | 'module'
   | 'module-file'
-  | 'create-module';
+  | 'create-module'
+  | 'message';
 
 interface TreeNode {
   kind: NodeKind;
@@ -32,16 +34,34 @@ export class AcaiTreeProvider implements vscode.TreeDataProvider<TreeNode> {
   private _onDidChangeTreeData = new vscode.EventEmitter<TreeNode | undefined | void>();
   readonly onDidChangeTreeData = this._onDidChangeTreeData.event;
 
+  private _dockerRunning: boolean | null = null; // null = not checked yet
+
   constructor(
     private modulesPath: string,
     private hooksPath: string,
-  ) {}
+    private domain: string,
+  ) {
+    this.checkDocker();
+  }
 
   refresh(): void {
+    this.checkDocker();
+  }
+
+  private async checkDocker(): Promise<void> {
+    const status = await getProjectStatus(this.domain);
+    this._dockerRunning = status.running;
     this._onDidChangeTreeData.fire();
   }
 
   getTreeItem(node: TreeNode): vscode.TreeItem {
+    if (node.kind === 'message') {
+      const item = new vscode.TreeItem(node.label, vscode.TreeItemCollapsibleState.None);
+      item.iconPath = new vscode.ThemeIcon('warning');
+      item.tooltip = node.tooltip;
+      return item;
+    }
+
     const collapsible = node.children
       ? vscode.TreeItemCollapsibleState.Collapsed
       : vscode.TreeItemCollapsibleState.None;
@@ -97,6 +117,17 @@ export class AcaiTreeProvider implements vscode.TreeDataProvider<TreeNode> {
   // ── Build tree ──
 
   private getRoots(): TreeNode[] {
+    if (this._dockerRunning === null) {
+      return [{ kind: 'message', label: 'Comprobando Docker...', tooltip: 'Consultando estado del contenedor' }];
+    }
+
+    if (!this._dockerRunning) {
+      return [
+        { kind: 'message', label: 'Web no levantada', tooltip: 'Levanta la web desde Docker Web GUI para trabajar con ella' },
+        { kind: 'message', label: 'Levanta la web y pulsa refrescar', tooltip: 'Usa el botón de refrescar en la barra del panel' },
+      ];
+    }
+
     return [
       this.buildHooksRoot(),
       this.buildSectionsRoot(),
@@ -287,7 +318,6 @@ function getModuleInfo(dirPath: string, dirName: string): { category: string; di
     }
   }
 
-  // No builder.json or no slash in label
   return {
     category: 'OTROS',
     displayName: cleanDirName(dirName),
@@ -295,7 +325,6 @@ function getModuleInfo(dirPath: string, dirName: string): { category: string; di
 }
 
 function cleanDirName(name: string): string {
-  // Remove hash suffix: "bannerprincipal_38sjav" → "bannerprincipal"
   const cleaned = name.replace(/_[a-z0-9]{4,8}$/, '');
   return capitalize(cleaned);
 }

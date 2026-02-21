@@ -7,7 +7,12 @@ import { createModule } from './createModule';
 
 let config: ProjectConfig | undefined;
 
+// Output channel global para logs
+export const log = vscode.window.createOutputChannel('Acai', { log: true });
+
 export function activate(context: vscode.ExtensionContext): void {
+  log.info('Extensión activada');
+
   const workspaceFolders = vscode.workspace.workspaceFolders;
   if (!workspaceFolders || workspaceFolders.length === 0) { return; }
 
@@ -15,18 +20,17 @@ export function activate(context: vscode.ExtensionContext): void {
 
   try {
     config = readProjectConfig(root);
+    log.info(`Config cargada — domain: ${config.acai.domain}`);
   } catch (err: any) {
     vscode.window.showErrorMessage(`Acai: No se pudo leer la configuración — ${err.message}`);
     return;
   }
 
-  const treeProvider = new AcaiTreeProvider(config.modulesPath, config.hooksPath);
+  const treeProvider = new AcaiTreeProvider(config.modulesPath, config.hooksPath, config.acai.domain);
 
   context.subscriptions.push(
     vscode.window.registerTreeDataProvider('acaiModulesTree', treeProvider),
   );
-
-  // ── Commands ──
 
   context.subscriptions.push(
     vscode.commands.registerCommand('acai.openFile', (filePath: string) => {
@@ -63,9 +67,10 @@ export function activate(context: vscode.ExtensionContext): void {
       const fileName = path.basename(doc.fileName);
       if (fileName !== 'index-base.tpl') { return; }
 
-      // Verify the file is inside our modules path
       const relative = path.relative(config.modulesPath, doc.fileName);
       if (relative.startsWith('..') || path.isAbsolute(relative)) { return; }
+
+      log.info(`Guardado detectado: ${doc.fileName}`);
 
       if (debounceTimer) {
         clearTimeout(debounceTimer);
@@ -76,6 +81,8 @@ export function activate(context: vscode.ExtensionContext): void {
       }, 500);
     }),
   );
+
+  log.show(true); // Mostrar el panel Output automáticamente
 }
 
 export function deactivate(): void {
