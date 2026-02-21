@@ -26,7 +26,7 @@ export function activate(context: vscode.ExtensionContext): void {
     return;
   }
 
-  const treeProvider = new AcaiTreeProvider(config.modulesPath, config.hooksPath, config.acai.domain);
+  const treeProvider = new AcaiTreeProvider(config.modulesPath, config.hooksPath, config.acai.domain, config.schemasPath);
 
   const treeView = vscode.window.createTreeView('acaiModulesTree', {
     treeDataProvider: treeProvider,

@@ -22,6 +22,44 @@ function readJsonOrNull(filePath: string): any | null {
   }
 }
 
+interface SchemaTable {
+  tableName: string;
+  enlace: string | boolean;
+}
+
+function getLocalTables(workspaceRoot: string): SchemaTable[] {
+  const schemaDir = path.join(workspaceRoot, 'cms', 'data', 'schema');
+  try {
+    const files = fs.readdirSync(schemaDir).filter(f => f.endsWith('.ini.php'));
+    const tables: SchemaTable[] = [];
+
+    for (const file of files) {
+      const content = fs.readFileSync(path.join(schemaDir, file), 'utf-8');
+      let tableName = '';
+      let hasEnlace = false;
+
+      for (const line of content.split('\n')) {
+        const trimmed = line.trim();
+        if (trimmed.startsWith('tableName')) {
+          const match = trimmed.match(/^tableName\s*=\s*"?([^"]*)"?/);
+          if (match) { tableName = match[1].trim(); }
+        }
+        if (trimmed === '[enlace]') {
+          hasEnlace = true;
+        }
+      }
+
+      if (tableName) {
+        tables.push({ tableName, enlace: hasEnlace ? tableName : '' });
+      }
+    }
+
+    return tables;
+  } catch {
+    return [];
+  }
+}
+
 function getLocalModuleIds(modulesPath: string): string[] {
   try {
     return fs.readdirSync(modulesPath)
@@ -114,11 +152,12 @@ export async function compileModule(config: ProjectConfig, filePath: string): Pr
     log.info('Parseando HTML → Twig...');
     const previousSchema = builderJson?.vars || {};
 
-    // Leer IDs de módulos del filesystem para que el parser detecte tags embebidos
+    // Leer IDs de módulos y tablas del filesystem para que el parser detecte tags embebidos
     const moduleIds = getLocalModuleIds(config.modulesPath);
-    log.info(`Módulos locales encontrados: ${moduleIds.length}`);
+    const tables = getLocalTables(config.workspaceRoot);
+    log.info(`Módulos locales: ${moduleIds.length}, Tablas: ${tables.length}`);
 
-    const parseResult = await parseHtml(html, previousSchema, moduleIds);
+    const parseResult = await parseHtml(html, previousSchema, moduleIds, tables);
     htmlParsed = parseResult.htmlParsed;
     vars = parseResult.vars;
     log.info(`Parse OK — htmlParsed=${htmlParsed.length}c vars=${Object.keys(vars).length} campos`);

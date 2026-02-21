@@ -92,7 +92,7 @@ export interface ParseResult {
  *   1. generateBuilderVars(html, 2, previousSchema) → vars
  *   2. parseComponents(html, prefixVar, 2) → htmlParsed (con módulos, c-if, c-for, etc.)
  */
-export async function parseHtml(html: string, previousSchema?: any, moduleIds?: string[], listTables?: string[]): Promise<ParseResult> {
+export async function parseHtml(html: string, previousSchema?: any, moduleIds?: string[], listTables?: any[]): Promise<ParseResult> {
   const { appParser, window } = await loadRemoteParser();
 
   // Setear globals — parseDocument.js usa `for (const module in window.allModules)`
@@ -102,9 +102,10 @@ export async function parseHtml(html: string, previousSchema?: any, moduleIds?: 
   window.allModules = modulesObj;
   window.tables = listTables || [];
 
-  log.info(`Parser globals: allModules=${window.allModules.length} items, tables=${window.tables.length} items`);
-  if (window.allModules.length > 0) {
-    log.info(`Primeros módulos: ${window.allModules.slice(0, 10).join(', ')}`);
+  const moduleCount = Object.keys(modulesObj).length;
+  log.info(`Parser globals: allModules=${moduleCount} items, tables=${window.tables.length} items`);
+  if (moduleCount > 0) {
+    log.info(`Primeros módulos: ${Object.keys(modulesObj).slice(0, 10).join(', ')}`);
   }
 
   // Paso 1: Generar builder vars

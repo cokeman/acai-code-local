@@ -41,6 +41,7 @@ export class AcaiTreeProvider implements vscode.TreeDataProvider<TreeNode> {
     private modulesPath: string,
     private hooksPath: string,
     private domain: string,
+    private schemasPath: string,
   ) {
     this.checkDocker();
   }
@@ -182,7 +183,11 @@ export class AcaiTreeProvider implements vscode.TreeDataProvider<TreeNode> {
         const dirPath = path.join(this.modulesPath, dir);
         if (!fs.statSync(dirPath).isDirectory()) { continue; }
 
-        const displayName = capitalize(dir.replace('custom-', ''));
+        // Solo mostrar secciones cuya tabla tenga campo enlace
+        const tableName = dir.replace('custom-', '');
+        if (!tableHasEnlace(this.schemasPath, tableName)) { continue; }
+
+        const displayName = capitalize(tableName);
         const fileChildren = getModuleFiles(dirPath);
 
         children.push({
@@ -330,6 +335,16 @@ function getModuleInfo(dirPath: string, dirName: string): { category: string; di
     category: 'OTROS',
     displayName: cleanDirName(dirName),
   };
+}
+
+function tableHasEnlace(schemasPath: string, tableName: string): boolean {
+  const schemaFile = path.join(schemasPath, `${tableName}.ini.php`);
+  try {
+    const content = fs.readFileSync(schemaFile, 'utf-8');
+    return content.includes('[enlace]');
+  } catch {
+    return false;
+  }
 }
 
 function cleanDirName(name: string): string {

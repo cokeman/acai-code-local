@@ -27,6 +27,7 @@ export interface ProjectConfig {
   workspaceRoot: string;
   modulesPath: string;
   hooksPath: string;
+  schemasPath: string;
 }
 
 function readJsonFile(filePath: string): any {
@@ -100,5 +101,6 @@ export function readProjectConfig(workspaceRoot: string): ProjectConfig {
     workspaceRoot,
     modulesPath: path.join(workspaceRoot, 'template', 'estandar', 'modulos'),
     hooksPath: path.join(workspaceRoot, 'hooks'),
+    schemasPath: path.join(workspaceRoot, 'cms', 'data', 'schema'),
   };
 }
