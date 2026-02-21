@@ -26,8 +26,11 @@ print('Icon generated: icon.png')
 " 2>/dev/null || echo "   (Pillow not available, using text-only menu bar icon)"
 fi
 
+echo "==> Building frontend..."
+cd frontend && npm ci && npm run build && cd ..
+
 echo "==> Cleaning previous build..."
-rm -rf build dist
+rm -rf build
 
 echo "==> Building app..."
 python3 setup.py py2app

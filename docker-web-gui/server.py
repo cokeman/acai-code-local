@@ -16,6 +16,7 @@ import threading
 import time
 import urllib.parse
 import urllib.request
+import mimetypes
 import zipfile
 from pathlib import Path
 
@@ -249,6 +250,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
 
         if path == "/" or path == "/index.html":
             self.serve_index()
+        elif path == "/old":
+            self.serve_legacy_index()
         elif path == "/api/projects":
             self.handle_get_projects()
         elif path.startswith("/api/logs/"):
@@ -271,6 +274,10 @@ class Handler(http.server.BaseHTTPRequestHandler):
         elif path.startswith("/local/"):
             self.handle_local_proxy("GET")
         else:
+            # Try to serve static file from dist/ (Vite build assets)
+            relative = path.lstrip("/")
+            if relative and self.serve_static_file(relative):
+                return
             self.send_error_json("Not found", 404)
 
     def do_POST(self):
@@ -324,7 +331,10 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self.send_error_json("Not found", 404)
 
     def serve_index(self):
-        index_path = SCRIPT_DIR / "index.html"
+        # Try dist/index.html first (Vue build), fallback to index.html (legacy)
+        dist_index = SCRIPT_DIR / "dist" / "index.html"
+        legacy_index = SCRIPT_DIR / "index.html"
+        index_path = dist_index if dist_index.exists() else legacy_index
         if not index_path.exists():
             self.send_error_json("index.html not found", 500)
             return
@@ -334,6 +344,41 @@ class Handler(http.server.BaseHTTPRequestHandler):
         self.send_header("Content-Length", str(len(content)))
         self.end_headers()
         self.wfile.write(content)
+
+    def serve_legacy_index(self):
+        """Serve the old monolithic index.html for comparison."""
+        legacy_index = SCRIPT_DIR / "index.html"
+        if not legacy_index.exists():
+            self.send_error_json("index.html not found", 500)
+            return
+        content = legacy_index.read_bytes()
+        self.send_response(200)
+        self.send_header("Content-Type", "text/html; charset=utf-8")
+        self.send_header("Content-Length", str(len(content)))
+        self.end_headers()
+        self.wfile.write(content)
+
+    def serve_static_file(self, relative_path):
+        """Try to serve a static file from dist/. Returns True if served."""
+        dist_dir = (SCRIPT_DIR / "dist").resolve()
+        file_path = (dist_dir / relative_path).resolve()
+        # Security: ensure path doesn't escape dist/
+        if not str(file_path).startswith(str(dist_dir)):
+            return False
+        if not file_path.is_file():
+            return False
+        content_type, _ = mimetypes.guess_type(str(file_path))
+        if not content_type:
+            content_type = "application/octet-stream"
+        content = file_path.read_bytes()
+        self.send_response(200)
+        self.send_header("Content-Type", content_type)
+        self.send_header("Content-Length", str(len(content)))
+        self.send_header("Cache-Control", "public, max-age=31536000, immutable")
+        self._send_cors_headers()
+        self.end_headers()
+        self.wfile.write(content)
+        return True
 
     def handle_get_projects(self):
         projects = get_projects()

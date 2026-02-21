@@ -8,7 +8,15 @@ import os
 from setuptools import setup
 
 APP = ["tray_app.py"]
-DATA_FILES = [("", ["index.html", "icon_menu.png", "../docker-web.sh"])]
+import glob as _glob
+
+# Include dist/ recursively (Vue build output)
+_dist_files = []
+for _root, _dirs, _files in os.walk("dist"):
+    if _files:
+        _dist_files.append((_root, [os.path.join(_root, f) for f in _files]))
+
+DATA_FILES = [("", ["icon_menu.png", "../docker-web.sh"])] + _dist_files
 OPTIONS = {
     "argv_emulation": False,
     "includes": ["server", "config", "acai_api", "git_ops", "watcher"],
