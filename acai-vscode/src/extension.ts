@@ -28,9 +28,11 @@ export function activate(context: vscode.ExtensionContext): void {
 
   const treeProvider = new AcaiTreeProvider(config.modulesPath, config.hooksPath, config.acai.domain);
 
-  context.subscriptions.push(
-    vscode.window.registerTreeDataProvider('acaiModulesTree', treeProvider),
-  );
+  const treeView = vscode.window.createTreeView('acaiModulesTree', {
+    treeDataProvider: treeProvider,
+  });
+  treeView.title = config.acai.domain;
+  context.subscriptions.push(treeView);
 
   context.subscriptions.push(
     vscode.commands.registerCommand('acai.openFile', (filePath: string) => {
@@ -43,6 +45,15 @@ export function activate(context: vscode.ExtensionContext): void {
   context.subscriptions.push(
     vscode.commands.registerCommand('acai.refreshTree', () => {
       treeProvider.refresh();
+    }),
+  );
+
+  context.subscriptions.push(
+    vscode.commands.registerCommand('acai.copyModuleId', (node: any) => {
+      if (node?.moduleId) {
+        vscode.env.clipboard.writeText(node.moduleId);
+        vscode.window.setStatusBarMessage(`$(check) Copiado: ${node.moduleId}`, 3000);
+      }
     }),
   );
 

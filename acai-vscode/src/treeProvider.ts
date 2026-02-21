@@ -23,6 +23,7 @@ interface TreeNode {
   label: string;
   filePath?: string;
   dirPath?: string;
+  moduleId?: string;
   children?: TreeNode[];
   tooltip?: string;
   iconId?: string;
@@ -83,6 +84,11 @@ export class AcaiTreeProvider implements vscode.TreeDataProvider<TreeNode> {
         title: 'Crear Módulo',
       };
       item.iconPath = new vscode.ThemeIcon('add');
+    }
+
+    if (node.moduleId) {
+      item.description = node.moduleId;
+      item.contextValue = 'moduleWithId';
     }
 
     if (node.kind === 'root-hooks') {
@@ -183,6 +189,7 @@ export class AcaiTreeProvider implements vscode.TreeDataProvider<TreeNode> {
           kind: 'section',
           label: displayName,
           dirPath,
+          moduleId: dir,
           children: fileChildren.map(f => ({
             kind: 'section-file' as NodeKind,
             label: f.display,
@@ -224,6 +231,7 @@ export class AcaiTreeProvider implements vscode.TreeDataProvider<TreeNode> {
           kind: 'module',
           label: displayName,
           dirPath,
+          moduleId: dir,
           children: fileChildren.map(f => ({
             kind: 'module-file' as NodeKind,
             label: f.display,

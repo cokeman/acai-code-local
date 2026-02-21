@@ -46,9 +46,25 @@
         "command": "acai.refreshTree",
         "title": "Refrescar",
         "icon": "$(refresh)"
+      },
+      {
+        "command": "acai.copyModuleId",
+        "title": "Copiar ID del módulo",
+        "icon": "$(copy)"
       }
     ],
     "menus": {
+      "view/item/context": [
+        {
+          "command": "acai.copyModuleId",
+          "when": "view == acaiModulesTree && viewItem == moduleWithId",
+          "group": "inline"
+        },
+        {
+          "command": "acai.copyModuleId",
+          "when": "view == acaiModulesTree && viewItem == moduleWithId"
+        }
+      ],
       "view/title": [
         {
           "command": "acai.refreshTree",
