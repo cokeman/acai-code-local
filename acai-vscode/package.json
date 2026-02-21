@@ -1,0 +1,76 @@
+{
+  "name": "acai-cms-local-dev",
+  "displayName": "Acai CMS Local Dev",
+  "description": "Panel lateral para navegar hooks, secciones y módulos de un proyecto Acai CMS. Compila módulos automáticamente al guardar.",
+  "version": "0.1.0",
+  "publisher": "acai",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "workspaceContains:.acai"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "acai-explorer",
+          "title": "Acai CMS",
+          "icon": "resources/acai-icon.svg"
+        }
+      ]
+    },
+    "views": {
+      "acai-explorer": [
+        {
+          "id": "acaiModulesTree",
+          "name": "Módulos"
+        }
+      ]
+    },
+    "commands": [
+      {
+        "command": "acai.openFile",
+        "title": "Abrir archivo"
+      },
+      {
+        "command": "acai.createModule",
+        "title": "Crear Módulo",
+        "icon": "$(add)"
+      },
+      {
+        "command": "acai.refreshTree",
+        "title": "Refrescar",
+        "icon": "$(refresh)"
+      }
+    ],
+    "menus": {
+      "view/title": [
+        {
+          "command": "acai.refreshTree",
+          "when": "view == acaiModulesTree",
+          "group": "navigation@1"
+        },
+        {
+          "command": "acai.createModule",
+          "when": "view == acaiModulesTree",
+          "group": "navigation@2"
+        }
+      ]
+    }
+  },
+  "scripts": {
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "lint": "eslint src --ext ts"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "@types/vscode": "^1.85.0",
+    "typescript": "^5.3.0"
+  }
+}
