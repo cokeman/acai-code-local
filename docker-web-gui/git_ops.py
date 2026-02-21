@@ -73,7 +73,6 @@ database.sql
 node_modules/
 .DS_Store
 Thumbs.db
-.module-queue.json
 """
 
 

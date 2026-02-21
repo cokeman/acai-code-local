@@ -18,7 +18,6 @@ const outputContent = ref('')
 const showConfirm = ref(false)
 const confirmMessage = ref('')
 const confirmAction = ref(null)
-
 // Gitea configuration
 const giteaConfigured = ref(false)
 

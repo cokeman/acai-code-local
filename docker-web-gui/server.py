@@ -42,8 +42,7 @@ from git_ops import (
 
 from watcher import (
     _watcher_log, _watcher_log_lock,
-    _watcher_log_add, _queue_read, _process_queue,
-    start_module_watcher, mark_pulling, finish_pulling,
+    _watcher_log_add,
 )
 
 
@@ -269,8 +268,6 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self.handle_get_passwords()
         elif path == "/api/git/status":
             self.handle_git_status(qs)
-        elif path == "/api/watcher-logs":
-            self.handle_watcher_logs()
         elif path.startswith("/local/"):
             self.handle_local_proxy("GET")
         else:
@@ -552,26 +549,6 @@ class Handler(http.server.BaseHTTPRequestHandler):
         ansi_escape = re.compile(r'\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])')
         clean_out = ansi_escape.sub('', out + err)
 
-        # Process pending module queue after successful launch
-        if rc == 0 and _queue_read(path):
-            def _deferred_queue_process(project_dir):
-                """Poll get_projects() until the project appears, then process its queue."""
-                for _ in range(30):
-                    time.sleep(1)
-                    try:
-                        for proj in get_projects():
-                            if proj.get("project_dir") == project_dir and proj.get("web_url"):
-                                _process_queue(project_dir, proj["web_url"])
-                                return
-                    except Exception:
-                        pass
-                _watcher_log_add("warning",
-                    "Queue: could not find running project for {}".format(
-                        Path(project_dir).name))
-            threading.Thread(
-                target=_deferred_queue_process, args=(path,), daemon=True
-            ).start()
-
         self.send_json({
             "success": rc == 0,
             "output": token_msg + clean_out,
@@ -730,7 +707,6 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     except Exception:
                         pass
                 entry["needs_migration"] = needs_migration
-                entry["pending_modules"] = len(_queue_read(str(item)))
                 webs.append(entry)
         except PermissionError:
             pass
@@ -864,14 +840,6 @@ class Handler(http.server.BaseHTTPRequestHandler):
             "acai_password": keychain_get("acai") or "",
             "mysql_password": keychain_get("mysql") or "",
         })
-
-    # ---- Watcher logs ----
-
-    def handle_watcher_logs(self):
-        """GET /api/watcher-logs — return watcher log buffer."""
-        with _watcher_log_lock:
-            entries = list(_watcher_log)
-        self.send_json({"logs": entries})
 
     # ---- Local Proxy ----
 
@@ -1041,9 +1009,6 @@ class Handler(http.server.BaseHTTPRequestHandler):
 
         dest = Path(dest_dir).expanduser().resolve()
 
-        # Suppress watcher for this project during pull
-        mark_pulling(str(dest))
-
         steps = []
         errors = []
 
@@ -1065,7 +1030,6 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 json.dump(marker_data, f, ensure_ascii=False, indent=2)
             steps.append("Directorio creado en {}".format(dest))
         except Exception as e:
-            finish_pulling(str(dest))
             self.send_json({"success": False, "error": "Error creando directorio: {}".format(e)})
             return
 
@@ -1080,13 +1044,11 @@ class Handler(http.server.BaseHTTPRequestHandler):
             }
             result = acai_web_request_zip(domain, ssl_enabled, payload, timeout=120)
             if result.get("error"):
-                finish_pulling(str(dest))
                 self.send_json({"success": False, "error": "getAcaiPackFiles: {}".format(result["error"])})
                 return
             zip_path = result["path"]
             steps.append("ZIP descargado")
         except Exception as e:
-            finish_pulling(str(dest))
             self.send_json({"success": False, "error": "Error descargando ZIP: {}".format(e)})
             return
 
@@ -1098,7 +1060,6 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 zf.extractall(str(dest), members=members)
             steps.append("ZIP extraido")
         except zipfile.BadZipFile:
-            finish_pulling(str(dest))
             # Log first bytes to diagnose what the server returned
             try:
                 with open(zip_path, "rb") as f:
@@ -1109,7 +1070,6 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self.send_json({"success": False, "error": "El servidor no devolvio un ZIP valido. Respuesta: {}".format(preview_str[:300])})
             return
         except Exception as e:
-            finish_pulling(str(dest))
             self.send_json({"success": False, "error": "Error extrayendo ZIP: {}".format(e)})
             return
         finally:
@@ -1202,9 +1162,14 @@ class Handler(http.server.BaseHTTPRequestHandler):
             except Exception as e:
                 git_steps.append("git auto-init error: {}".format(e))
 
-        # Resume watcher tracking for this project
-        finish_pulling(str(dest))
-
+        # Auto-commit extracted files so watcher doesn't see them as changes.
+        has_git = (dest / ".git").is_dir()
+        if has_git:
+            rc_st, st_out, _ = run_cmd(["git", "-C", str(dest), "status", "--porcelain"], timeout=10)
+            if rc_st == 0 and st_out.strip():
+                run_cmd(["git", "-C", str(dest), "add", "."], timeout=30)
+                run_cmd(["git", "-C", str(dest), "commit", "-m", "Pull from production"], timeout=30)
+                steps.append("Auto-commit de archivos extraidos")
         self.send_json({
             "success": True,
             "acai": True,
@@ -1840,7 +1805,6 @@ def start_server(port=DEFAULT_PORT):
     server = http.server.HTTPServer(("127.0.0.1", port), Handler)
     print("Docker Web GUI running at http://localhost:{}".format(port))
     sys.stdout.flush()
-    start_module_watcher(get_projects_fn=get_projects)
     return server, port
 
 

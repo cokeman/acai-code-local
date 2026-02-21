@@ -7,7 +7,6 @@ export const useAppStore = defineStore('app', () => {
   // State
   const projects = ref([])
   const localWebs = ref([])
-  const watcherLogs = ref([])
   const settings = ref({})
   const refreshTimer = ref(null)
 
@@ -41,15 +40,6 @@ export const useAppStore = defineStore('app', () => {
     }
   }
 
-  async function refreshWatcherLogs() {
-    try {
-      const data = await api('/api/watcher-logs')
-      watcherLogs.value = data.logs || []
-    } catch (e) {
-      /* ignore */
-    }
-  }
-
   function applyRefreshInterval(seconds) {
     if (refreshTimer.value) clearInterval(refreshTimer.value)
     refreshTimer.value = setInterval(refreshProjects, (seconds || 15) * 1000)
@@ -62,12 +52,10 @@ export const useAppStore = defineStore('app', () => {
   return {
     projects,
     localWebs,
-    watcherLogs,
     settings,
     loadSettings,
     refreshProjects,
     refreshLocalWebs,
-    refreshWatcherLogs,
     applyRefreshInterval,
     saveSettings,
   }

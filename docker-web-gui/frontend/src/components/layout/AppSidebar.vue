@@ -11,8 +11,6 @@ const acaiStore = useAcaiStore()
 
 const projectsCount = computed(() => appStore.projects.length)
 const websCount = computed(() => appStore.localWebs.length)
-const watcherCount = computed(() => appStore.watcherLogs.length)
-
 const acaiLabel = computed(() => {
   if (acaiStore.isConnected) return acaiStore.domain?.domain || 'Conectado'
   if (acaiStore.isLoggedIn) return acaiStore.username
@@ -64,11 +62,6 @@ function openAcaiModal() {
         <span class="nav-badge">{{ websCount }}</span>
       </router-link>
 
-      <router-link to="/watcher" class="nav-item" :class="{ active: isActive('watcher') }">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
-        Watcher
-        <span class="nav-badge">{{ watcherCount }}</span>
-      </router-link>
     </nav>
 
     <div class="sidebar-acai">

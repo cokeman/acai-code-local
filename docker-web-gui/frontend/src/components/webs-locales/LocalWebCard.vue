@@ -43,10 +43,6 @@ const gitStatusLabel = computed(() => {
   return 'dirty'
 })
 
-const pendingCount = computed(() => {
-  return (props.web.pending_modules || 0)
-})
-
 // Is any action loading for this web?
 const isLoading = computed(() => !!props.loadingAction)
 
@@ -99,7 +95,6 @@ const gitConnBadge = computed(() => {
         <span v-if="web.running" class="badge badge-running">Running</span>
         <span v-if="web.acai" class="badge badge-acai">Acai</span>
         <span v-if="gitConnBadge" class="badge" :class="gitConnBadge.cls">{{ gitConnBadge.label }}</span>
-        <span v-if="pendingCount > 0" class="badge badge-queue">{{ pendingCount }} pendientes</span>
       </div>
       <span class="local-web-date">{{ formattedDate }}</span>
     </div>
