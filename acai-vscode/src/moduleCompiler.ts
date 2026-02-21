@@ -22,6 +22,18 @@ function readJsonOrNull(filePath: string): any | null {
   }
 }
 
+function getLocalModuleIds(modulesPath: string): string[] {
+  try {
+    return fs.readdirSync(modulesPath)
+      .filter(d => {
+        const fullPath = path.join(modulesPath, d);
+        return fs.statSync(fullPath).isDirectory();
+      });
+  } catch {
+    return [];
+  }
+}
+
 function sendToApi(url: string, body: string, token: string, moduleId: string): void {
   const parsed = new URL(url);
 
@@ -101,7 +113,12 @@ export async function compileModule(config: ProjectConfig, filePath: string): Pr
   try {
     log.info('Parseando HTML → Twig...');
     const previousSchema = builderJson?.vars || {};
-    const parseResult = await parseHtml(html, previousSchema);
+
+    // Leer IDs de módulos del filesystem para que el parser detecte tags embebidos
+    const moduleIds = getLocalModuleIds(config.modulesPath);
+    log.info(`Módulos locales encontrados: ${moduleIds.length}`);
+
+    const parseResult = await parseHtml(html, previousSchema, moduleIds);
     htmlParsed = parseResult.htmlParsed;
     vars = parseResult.vars;
     log.info(`Parse OK — htmlParsed=${htmlParsed.length}c vars=${Object.keys(vars).length} campos`);

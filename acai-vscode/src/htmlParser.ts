@@ -1,6 +1,7 @@
 import { JSDOM } from 'jsdom';
 import * as vm from 'vm';
 import * as https from 'https';
+import { log } from './extension';
 
 // Cache del parser y scripts
 let appParserCache: any = null;
@@ -87,21 +88,42 @@ export interface ParseResult {
 
 /**
  * Parsea HTML base (index-base.tpl) y genera htmlParsed (Twig) + vars editables.
- * Replica exactamente el flujo de acai-code: remoteParser.js → appParser.generateBuilderVars(code, 2)
+ * Replica el flujo de acai-code save.js:
+ *   1. generateBuilderVars(html, 2, previousSchema) → vars
+ *   2. parseComponents(html, prefixVar, 2) → htmlParsed (con módulos, c-if, c-for, etc.)
  */
-export async function parseHtml(html: string, previousSchema?: any): Promise<ParseResult> {
+export async function parseHtml(html: string, previousSchema?: any, moduleIds?: string[], listTables?: string[]): Promise<ParseResult> {
   const { appParser, window } = await loadRemoteParser();
 
-  // Setear globals que el parser necesita (módulos y tablas conocidos)
-  // En local no tenemos la lista, pero el parser funciona sin ellos
-  window.allModules = window.allModules || [];
-  window.tables = window.tables || [];
+  // Setear globals — parseDocument.js usa `for (const module in window.allModules)`
+  // por lo que necesita un OBJETO con IDs como keys, no un array
+  const modulesObj: Record<string, boolean> = {};
+  for (const id of (moduleIds || [])) { modulesObj[id] = true; }
+  window.allModules = modulesObj;
+  window.tables = listTables || [];
 
+  log.info(`Parser globals: allModules=${window.allModules.length} items, tables=${window.tables.length} items`);
+  if (window.allModules.length > 0) {
+    log.info(`Primeros módulos: ${window.allModules.slice(0, 10).join(', ')}`);
+  }
+
+  // Paso 1: Generar builder vars
   const safePreviousSchema = previousSchema || {};
   const result = appParser.generateBuilderVars(html, 2, safePreviousSchema);
 
+  // Paso 2: Parsear componentes (módulos embebidos, c-if, c-for, etc.) → Twig
+  let htmlParsed = result.codeParsed;
+  try {
+    log.info('Llamando a appParser.parseComponents...');
+    htmlParsed = appParser.parseComponents(html, '', 2);
+    log.info(`parseComponents OK — ${htmlParsed.length}c`);
+  } catch (err: any) {
+    log.error(`parseComponents FALLÓ: ${err.message}\n${err.stack}`);
+    log.info('Usando codeParsed de generateBuilderVars como fallback');
+  }
+
   return {
-    htmlParsed: result.codeParsed,
+    htmlParsed,
     vars: result.codeVars,
   };
 }
