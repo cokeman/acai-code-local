@@ -7,6 +7,7 @@ import OutputModal from '../components/common/OutputModal.vue'
 import ConfirmDialog from '../components/common/ConfirmDialog.vue'
 import { useAppStore } from '../stores/app.js'
 import { api, apiPost } from '../composables/useApi.js'
+import { notifyExtension } from '../composables/useVscodeBridge.js'
 
 const appStore = useAppStore()
 
@@ -166,6 +167,7 @@ async function doLaunch(web) {
     const data = await apiPost('/api/launch', body)
     showResult('Levantar Web', data)
     await appStore.refreshProjects()
+    notifyExtension('refreshTree')
   } catch (e) {
     showResult('Error', e.message || 'Error al levantar')
   } finally {

@@ -6,6 +6,7 @@ import OutputModal from '../components/common/OutputModal.vue'
 import ConfirmDialog from '../components/common/ConfirmDialog.vue'
 import { useAppStore } from '../stores/app.js'
 import { api, apiPost } from '../composables/useApi.js'
+import { notifyExtension } from '../composables/useVscodeBridge.js'
 
 const appStore = useAppStore()
 const loading = ref(false)
@@ -71,6 +72,7 @@ function onStop(project) {
       clearLoading(project)
     }
     appStore.refreshProjects()
+    notifyExtension('refreshTree')
   }
   showConfirm.value = true
 }
@@ -93,6 +95,7 @@ function onDestroy(project) {
       clearLoading(project)
     }
     appStore.refreshProjects()
+    notifyExtension('refreshTree')
   }
   showConfirm.value = true
 }

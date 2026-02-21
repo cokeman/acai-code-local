@@ -5,6 +5,7 @@ export interface AcaiConfig {
   domain: string;
   ssl: boolean;
   token: string;
+  tokenHash: string;
 }
 
 export interface DockerEnv {
@@ -69,6 +70,7 @@ export function readProjectConfig(workspaceRoot: string): ProjectConfig {
     domain: acaiData.domain,
     ssl: acaiData.ssl ?? true,
     token: acaiData.token,
+    tokenHash: acaiData.tokenHash || '',
   };
 
   const envPath = path.join(workspaceRoot, '.docker', '.env');

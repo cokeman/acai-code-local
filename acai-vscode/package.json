@@ -27,8 +27,21 @@
     "views": {
       "acai-explorer": [
         {
+          "id": "acaiOfflinePanel",
+          "type": "webview",
+          "name": "Servidor",
+          "when": "!acai.serverOnline"
+        },
+        {
           "id": "acaiModulesTree",
-          "name": "Módulos"
+          "name": "Módulos",
+          "when": "acai.serverOnline"
+        },
+        {
+          "id": "acaiSidebarPanel",
+          "type": "webview",
+          "name": "Panel Acai",
+          "when": "acai.serverOnline"
         }
       ]
     },
@@ -51,6 +64,16 @@
         "command": "acai.copyModuleId",
         "title": "Copiar ID del módulo",
         "icon": "$(copy)"
+      },
+      {
+        "command": "acai.openDashboard",
+        "title": "Acai: Abrir Dashboard",
+        "icon": "$(dashboard)"
+      },
+      {
+        "command": "acai.checkServer",
+        "title": "Reintentar conexión",
+        "icon": "$(refresh)"
       }
     ],
     "menus": {
@@ -75,6 +98,16 @@
           "command": "acai.createModule",
           "when": "view == acaiModulesTree",
           "group": "navigation@2"
+        },
+        {
+          "command": "acai.openDashboard",
+          "when": "view == acaiModulesTree",
+          "group": "navigation@3"
+        },
+        {
+          "command": "acai.checkServer",
+          "when": "view == acaiOfflinePanel",
+          "group": "navigation@1"
         }
       ]
     }
@@ -82,7 +115,8 @@
   "scripts": {
     "compile": "tsc -p ./",
     "watch": "tsc -watch -p ./",
-    "lint": "eslint src --ext ts"
+    "lint": "eslint src --ext ts",
+    "build:webview": "cd ../docker-web-gui/frontend && npm run build && rm -rf ../../acai-vscode/resources/webview && cp -r ../dist ../../acai-vscode/resources/webview"
   },
   "devDependencies": {
     "@types/jsdom": "^27.0.0",
